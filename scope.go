@@ -11,8 +11,6 @@ import (
 	"github.com/manvalls/wit"
 )
 
-var head = wit.S("head")
-
 // Scope wraps an HTTP request with useful internal data structures
 type Scope struct {
 	req         *http.Request
@@ -38,7 +36,7 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 
 	script += "})()</script>"
 
-	delta = wit.List(delta, head.One(wit.Prepend(wit.FromString(script))))
+	delta = wit.List(delta, wit.Head.One(wit.Prepend(wit.FromString(script))))
 	contentType := httputil.NegotiateContentType(s.req, []string{"text/html", "application/json"}, "text/html")
 
 	var r wit.Renderer
