@@ -54,6 +54,7 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 	if contentType == "application/json" {
 		r, err = wit.NewJSONRenderer(delta)
 	} else {
+		contentType += "; charset=utf-8"
 		r, err = wit.NewHTMLRenderer(delta)
 	}
 
