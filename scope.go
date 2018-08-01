@@ -3,6 +3,7 @@ package wok
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -10,6 +11,9 @@ import (
 	"github.com/golang/gddo/httputil"
 	"github.com/manvalls/wit"
 )
+
+// Params hold information about route parameters
+type Params = map[string][]string
 
 // Scope wraps an HTTP request with useful internal data structures
 type Scope struct {
@@ -29,12 +33,19 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	script := "<script>(function(){var w=window.wok=window.wok||{};"
+	script := "<script>(function(){var w=window.wok=window.wok||{};w.routes={"
+
+	i := 0
 	for key, value := range s.routes {
-		script += "w[" + strconv.Quote(key) + "]=" + strconv.Quote(value) + ";"
+		if i != 0 {
+			script += ","
+		}
+
+		script += strconv.Quote(key) + ":" + strconv.Quote(value)
+		i++
 	}
 
-	script += "})()</script>"
+	script += "};})()</script>"
 
 	delta = wit.List(delta, wit.Head.One(wit.Prepend(wit.FromString(script))))
 	contentType := httputil.NegotiateContentType(s.req, []string{"text/html", "application/json"}, "text/html")
@@ -62,33 +73,61 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 }
 
 // FromHeader builds a route path from an HTTP header
-func (s *Scope) FromHeader(header string) []uint {
+func (s *Scope) FromHeader(header string) (Params, []uint) {
 	header = http.CanonicalHeaderKey(header)
 	headerValue := strings.Join(s.req.Header[header], ",")
 
+	rawRoute := ""
+	rawQuery := ""
+
+	parts := strings.Split(headerValue, "?")
+
+	switch len(parts) {
+	case 0:
+	case 1:
+		rawRoute = parts[0]
+	default:
+		rawRoute = parts[0]
+		rawQuery = parts[1]
+	}
+
 	route := make([]uint, 0)
-	for _, h := range strings.Split(headerValue, ",") {
+	for _, h := range strings.Split(rawRoute, ",") {
 		n, err := strconv.ParseUint(strings.Trim(h, " "), 36, 64)
 		if err == nil {
 			route = append(route, uint(n))
 		}
 	}
 
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		query = url.Values{}
+	}
+
 	s.mutex.Lock()
 	s.usedHeaders[header] = true
 	s.mutex.Unlock()
 
-	return route
+	return query, route
 }
 
 // ToHeader maps a route path to a header value
-func ToHeader(route ...uint) string {
+func ToHeader(params Params, route ...uint) string {
 	result := make([]string, len(route))
 	for i, v := range route {
 		result[i] = strconv.FormatUint(uint64(v), 36)
 	}
 
-	return strings.Join(result, ",")
+	var values url.Values
+	path := strings.Join(result, ",")
+	values = params
+	query := values.Encode()
+
+	if query != "" {
+		return path + "?" + query
+	}
+
+	return path
 }
 
 // Run executes the given function under the context of the request
