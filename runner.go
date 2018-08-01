@@ -27,7 +27,7 @@ type Runner struct {
 }
 
 // Runner builds a new runner linked to this scope
-func (s *Scope) Runner(header string, params Params, route ...uint) *Runner {
+func (s *Scope) Runner(header string, params Params, route ...uint) Runner {
 	header = http.CanonicalHeaderKey(header)
 	prevParams, prevRoute := s.FromHeader(header)
 
@@ -43,7 +43,7 @@ func (s *Scope) Runner(header string, params Params, route ...uint) *Runner {
 	s.routes[header] = ToHeader(params, route...)
 	s.mutex.Unlock()
 
-	return &Runner{0, startIndex, params, route, prevParams, prevRoute, s, &deltaAggregator{
+	return Runner{0, startIndex, params, route, prevParams, prevRoute, s, &deltaAggregator{
 		sync.Mutex{},
 		[]wit.Delta{},
 	}}
@@ -102,7 +102,7 @@ func (r Runner) RunWithParams(f func(ctx context.Context, params url.Values, old
 func (r Runner) RunParams(f func(ctx context.Context, params url.Values) wit.Delta, params ...string) {
 	r.RunWithParams(func(ctx context.Context, params url.Values, _ url.Values) wit.Delta {
 		return f(ctx, params)
-	})
+	}, params...)
 }
 
 // Append appends deltas to the internal buffer
