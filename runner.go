@@ -66,24 +66,61 @@ func (r Runner) RunWithParams(f func(ctx context.Context, params url.Values, old
 	filteredParams := Params{}
 	filteredOldParams := Params{}
 
-	for _, param := range params {
-		newParam := r.params[param]
-		oldParam := r.prevParams[param]
+	if len(params) > 0 {
+		for _, param := range params {
+			newParam, newOk := r.params[param]
+			oldParam, oldOk := r.prevParams[param]
 
-		filteredParams[param] = newParam
-		filteredOldParams[param] = oldParam
+			if newOk {
+				filteredParams[param] = newParam
+			}
 
-		if equal {
-			if len(newParam) != len(oldParam) {
-				equal = false
-			} else {
-				for i := range newParam {
-					if newParam[i] != oldParam[i] {
-						equal = false
-						break
+			if oldOk {
+				filteredOldParams[param] = oldParam
+			}
+
+			if equal {
+				if len(newParam) != len(oldParam) {
+					equal = false
+				} else {
+					for i := range newParam {
+						if newParam[i] != oldParam[i] {
+							equal = false
+							break
+						}
 					}
 				}
 			}
+		}
+	} else {
+		if equal && len(r.params) != len(r.prevParams) {
+			equal = false
+		}
+
+		for key, value := range r.params {
+			filteredParams[key] = value
+
+			if equal {
+				oldValue, ok := r.prevParams[key]
+				if !ok {
+					equal = false
+				} else {
+					if len(oldValue) != len(value) {
+						equal = false
+					} else {
+						for i := range value {
+							if value[i] != oldValue[i] {
+								equal = false
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+
+		for key, value := range r.prevParams {
+			filteredOldParams[key] = value
 		}
 	}
 
