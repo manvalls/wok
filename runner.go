@@ -50,7 +50,7 @@ func (s *Scope) Runner(header string, params Params, route ...uint) *Runner {
 }
 
 // Run executes the given function, if needed
-func (r Runner) Run(f func(context.Context) wit.Delta) {
+func (r Runner) Run(f func(ctx context.Context) wit.Delta) {
 	if r.index >= r.start {
 		delta := wit.Run(r.scope.req.Context(), f)
 
@@ -60,16 +60,18 @@ func (r Runner) Run(f func(context.Context) wit.Delta) {
 	}
 }
 
-// RunParams executes the given function with the given params, if needed
-func (r Runner) RunParams(f func(context.Context, url.Values) wit.Delta, params ...string) {
+// RunWithParams executes the given function with the given params, if needed
+func (r Runner) RunWithParams(f func(ctx context.Context, params url.Values, oldParams url.Values) wit.Delta, params ...string) {
 	equal := r.index < r.start
 	filteredParams := Params{}
+	filteredOldParams := Params{}
 
 	for _, param := range params {
 		newParam := r.params[param]
 		oldParam := r.prevParams[param]
 
 		filteredParams[param] = newParam
+		filteredOldParams[param] = oldParam
 
 		if equal {
 			if len(newParam) != len(oldParam) {
@@ -87,13 +89,20 @@ func (r Runner) RunParams(f func(context.Context, url.Values) wit.Delta, params 
 
 	if !equal {
 		delta := wit.Run(r.scope.req.Context(), func(ctx context.Context) wit.Delta {
-			return f(ctx, filteredParams)
+			return f(ctx, filteredParams, filteredOldParams)
 		})
 
 		r.aggregator.Lock()
 		r.aggregator.deltas = append(r.aggregator.deltas, delta)
 		r.aggregator.Unlock()
 	}
+}
+
+// RunParams behaves the same way as RunWithParams, but without providing old parameters
+func (r Runner) RunParams(f func(ctx context.Context, params url.Values) wit.Delta, params ...string) {
+	r.RunWithParams(func(ctx context.Context, params url.Values, _ url.Values) wit.Delta {
+		return f(ctx, params)
+	})
 }
 
 // Append appends deltas to the internal buffer
