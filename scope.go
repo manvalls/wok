@@ -45,7 +45,7 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 		i++
 	}
 
-	script += "};})()</script>"
+	script += "}})()</script>"
 
 	delta = wit.List(delta, wit.Head.One(wit.Prepend(wit.FromString(script))))
 	contentType := httputil.NegotiateContentType(s.req, []string{"text/html", "application/json"}, "text/html")
