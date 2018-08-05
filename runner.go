@@ -4,15 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"sync"
 
 	"github.com/manvalls/wit"
 )
-
-type deltaAggregator struct {
-	sync.Mutex
-	deltas []wit.Delta
-}
 
 // Runner runs steps according to previous and current route
 type Runner struct {
@@ -23,7 +17,7 @@ type Runner struct {
 	prevParams Params
 	prevRoute  []uint
 	scope      *Scope
-	aggregator *deltaAggregator
+	wit.Slice
 }
 
 // Runner builds a new runner linked to this scope
@@ -43,20 +37,13 @@ func (s *Scope) Runner(header string, params Params, route ...uint) Runner {
 	s.routes[header] = ToHeader(params, route...)
 	s.mutex.Unlock()
 
-	return Runner{0, startIndex, params, route, prevParams, prevRoute, s, &deltaAggregator{
-		sync.Mutex{},
-		[]wit.Delta{},
-	}}
+	return Runner{0, startIndex, params, route, prevParams, prevRoute, s, wit.NewSlice()}
 }
 
 // Run executes the given function, if needed
 func (r Runner) Run(f func(ctx context.Context) wit.Delta) {
 	if r.index >= r.start {
-		delta := wit.Run(r.scope.req.Context(), f)
-
-		r.aggregator.Lock()
-		r.aggregator.deltas = append(r.aggregator.deltas, delta)
-		r.aggregator.Unlock()
+		r.Append(wit.Run(r.scope.req.Context(), f))
 	}
 }
 
@@ -125,13 +112,9 @@ func (r Runner) RunWithParams(f func(ctx context.Context, params url.Values, old
 	}
 
 	if !equal {
-		delta := wit.Run(r.scope.req.Context(), func(ctx context.Context) wit.Delta {
+		r.Append(wit.Run(r.scope.req.Context(), func(ctx context.Context) wit.Delta {
 			return f(ctx, filteredParams, filteredOldParams)
-		})
-
-		r.aggregator.Lock()
-		r.aggregator.deltas = append(r.aggregator.deltas, delta)
-		r.aggregator.Unlock()
+		}))
 	}
 }
 
@@ -140,23 +123,6 @@ func (r Runner) RunParams(f func(ctx context.Context, params url.Values) wit.Del
 	r.RunWithParams(func(ctx context.Context, params url.Values, _ url.Values) wit.Delta {
 		return f(ctx, params)
 	}, params...)
-}
-
-// Append appends deltas to the internal buffer
-func (r Runner) Append(deltas ...wit.Delta) {
-	r.aggregator.Lock()
-	r.aggregator.deltas = append(r.aggregator.deltas, deltas...)
-	r.aggregator.Unlock()
-}
-
-// Delta flushes the internal buffer to the returned delta
-func (r Runner) Delta() wit.Delta {
-	r.aggregator.Lock()
-	defer r.aggregator.Unlock()
-
-	delta := wit.List(r.aggregator.deltas...)
-	r.aggregator.deltas = []wit.Delta{}
-	return delta
 }
 
 // Route returns the current route step
