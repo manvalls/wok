@@ -16,7 +16,7 @@ type Runner struct {
 	route      []uint
 	prevParams Params
 	prevRoute  []uint
-	scope      *Scope
+	*Scope
 	wit.Slice
 }
 
@@ -43,7 +43,7 @@ func (s *Scope) Runner(header string, params Params, route ...uint) Runner {
 // Run executes the given function, if needed
 func (r Runner) Run(f func(ctx context.Context) wit.Delta) {
 	if r.index >= r.start {
-		r.Append(wit.Run(r.scope.req.Context(), f))
+		r.Append(wit.Run(r.req.Context(), f))
 	}
 }
 
@@ -112,7 +112,7 @@ func (r Runner) RunWithParams(f func(ctx context.Context, params url.Values, old
 	}
 
 	if !equal {
-		r.Append(wit.Run(r.scope.req.Context(), func(ctx context.Context) wit.Delta {
+		r.Append(wit.Run(r.req.Context(), func(ctx context.Context) wit.Delta {
 			return f(ctx, filteredParams, filteredOldParams)
 		}))
 	}
