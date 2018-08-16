@@ -21,7 +21,7 @@ type Runner struct {
 }
 
 // Runner builds a new runner linked to this scope
-func (s *Scope) Runner(header string, params Params, route ...uint) Runner {
+func (s *Scope) Runner(handler func(runner Runner), header string, params Params, route ...uint) wit.Delta {
 	header = http.CanonicalHeaderKey(header)
 	prevParams, prevRoute := s.FromHeader(header)
 
@@ -37,7 +37,14 @@ func (s *Scope) Runner(header string, params Params, route ...uint) Runner {
 	s.routes[header] = ToHeader(params, route...)
 	s.mutex.Unlock()
 
-	return Runner{0, startIndex, params, route, prevParams, prevRoute, s, wit.NewSlice()}
+	slice := wit.NewSlice()
+	handler(Runner{0, startIndex, params, route, prevParams, prevRoute, s, slice})
+	return slice.Delta()
+}
+
+// Runner builds a new runner linked to this runner
+func (r Runner) Runner(handler func(runner Runner), header string, params Params, route ...uint) {
+	r.Append(r.scope.Runner(handler, header, params, route...))
 }
 
 // Run executes the given function, if needed
@@ -159,7 +166,7 @@ func (r Runner) NeedsCleanup() bool {
 }
 
 // Next returns a new runner for the next step
-func (r Runner) Next() Runner {
+func (r Runner) Next(handler func(runner Runner)) {
 	r.index++
-	return r
+	handler(r)
 }
