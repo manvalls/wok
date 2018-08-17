@@ -15,8 +15,8 @@ type Deduper struct {
 	scope  *Scope
 }
 
-// Deduper builds a new deduper linked to this scope
-func (s *Scope) Deduper(header string) Deduper {
+// NewDeduper builds a new deduper linked to this scope
+func (s *Scope) NewDeduper(header string) Deduper {
 	header = http.CanonicalHeaderKey(header)
 	_, keyList := s.FromHeader(header)
 

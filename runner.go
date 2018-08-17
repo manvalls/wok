@@ -20,8 +20,8 @@ type Runner struct {
 	wit.Slice
 }
 
-// Runner builds a new runner linked to this scope
-func (s *Scope) Runner(handler func(runner Runner), header string, params Params, route ...uint) wit.Delta {
+// NewRunner builds a new runner linked to this scope
+func (s *Scope) NewRunner(handler func(runner Runner), header string, params Params, route ...uint) wit.Delta {
 	header = http.CanonicalHeaderKey(header)
 	prevParams, prevRoute := s.FromHeader(header)
 
@@ -42,9 +42,9 @@ func (s *Scope) Runner(handler func(runner Runner), header string, params Params
 	return slice.Delta()
 }
 
-// Runner builds a new runner linked to this runner
-func (r Runner) Runner(handler func(runner Runner), header string, params Params, route ...uint) {
-	r.Append(r.scope.Runner(handler, header, params, route...))
+// NewRunner builds a new runner linked to this runner
+func (r Runner) NewRunner(handler func(runner Runner), header string, params Params, route ...uint) {
+	r.Append(r.scope.NewRunner(handler, header, params, route...))
 }
 
 // Run executes the given function, if needed
