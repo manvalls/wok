@@ -67,7 +67,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		deduperHeader = "X-Wok-Deduper"
 	}
 
-	scope.NewRunner(func(runner Runner) {
+	scope.Write(w, scope.NewRunner(func(runner Runner) {
 		h.Handler(Request{
 			w,
 			r,
@@ -76,5 +76,5 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			scope,
 			h.Router,
 		})
-	}, runnerHeader, params, route...)
+	}, runnerHeader, params, route...))
 }
