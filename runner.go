@@ -8,6 +8,11 @@ import (
 	"github.com/manvalls/wit"
 )
 
+type redirection struct {
+	params Params
+	route  []uint
+}
+
 // Runner runs steps according to previous and current route
 type Runner struct {
 	index      int
@@ -17,19 +22,40 @@ type Runner struct {
 	prevParams Params
 	prevRoute  []uint
 	scope      *Scope
+	redir      *redirection
 	wit.Slice
 }
 
 // NewRunner builds a new runner linked to this scope
-func (s *Scope) NewRunner(handler func(runner Runner), header string, params Params, route ...uint) wit.Delta {
+func (s *Scope) NewRunner(handler func(runner Runner), header string, params Params, route ...uint) (delta wit.Delta) {
+	var err error
 	header = http.CanonicalHeaderKey(header)
 	prevParams, prevRoute := s.FromHeader(header)
 
-	startIndex := len(prevRoute)
-	for i, j := range prevRoute {
-		if i >= len(route) || route[i] != j {
-			startIndex = i
-			break
+	redir := redirection{params, route}
+	nredir := 0
+
+	for redir.route != nil && nredir < 20 {
+		params = redir.params
+		route = redir.route
+		redir.params = nil
+		redir.route = nil
+		nredir++
+
+		startIndex := len(prevRoute)
+		for i, j := range prevRoute {
+			if i >= len(route) || route[i] != j {
+				startIndex = i
+				break
+			}
+		}
+
+		runner := Runner{0, startIndex, params, route, prevParams, prevRoute, s, &redir, wit.NewSlice()}
+		handler(runner)
+
+		delta, err = wit.Normalize(runner.Delta())
+		if err != nil {
+			delta = wit.Error(err)
 		}
 	}
 
@@ -37,9 +63,7 @@ func (s *Scope) NewRunner(handler func(runner Runner), header string, params Par
 	s.routes[header] = ToHeader(params, route...)
 	s.mutex.Unlock()
 
-	slice := wit.NewSlice()
-	handler(Runner{0, startIndex, params, route, prevParams, prevRoute, s, slice})
-	return slice.Delta()
+	return
 }
 
 // NewRunner builds a new runner linked to this runner
@@ -130,6 +154,14 @@ func (r Runner) RunParams(f func(ctx context.Context, params url.Values) wit.Del
 	r.RunWithParams(func(ctx context.Context, params url.Values, _ url.Values) wit.Delta {
 		return f(ctx, params)
 	}, params...)
+}
+
+// Redirect issues an internal redirection at the current runner
+func (r Runner) Redirect(params Params, route ...uint) wit.Delta {
+	r.redir.params = params
+	r.redir.route = route
+	r.Append(wit.End)
+	return wit.End
 }
 
 // Route returns the current route step
