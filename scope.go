@@ -60,7 +60,7 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 		r, err = wit.NewHTMLRenderer(delta)
 	}
 
-	if err != nil {
+	if err != nil && err != wit.ErrEnd {
 		return err
 	}
 
@@ -71,8 +71,13 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 
 	resHeaders["Vary"] = append(resHeaders["Vary"], "Content-Type")
 	resHeaders["Vary"] = []string{strings.Join(resHeaders["Vary"], ", ")}
-	resHeaders["Content-Type"] = []string{contentType}
-	return r.Render(writer)
+
+	if err == nil {
+		resHeaders["Content-Type"] = []string{contentType}
+		return r.Render(writer)
+	}
+
+	return nil
 }
 
 // FromHeader builds a route path from an HTTP header
