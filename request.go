@@ -54,7 +54,12 @@ type Handler struct {
 }
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	params, route, _ := h.GetRoute(r.URL)
+	params, route, err := h.GetRoute(r.URL)
+	if err != nil {
+		w.WriteHeader(404)
+		return
+	}
+
 	scope := NewScope(r)
 
 	runnerHeader := h.RunnerHeader
@@ -67,7 +72,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		deduperHeader = "X-Wok-Deduper"
 	}
 
-	scope.Write(w, scope.NewRunner(func(runner Runner) {
+	err = scope.Write(w, scope.NewRunner(func(runner Runner) {
 		h.Handler(Request{
 			w,
 			r,
@@ -77,4 +82,9 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.Router,
 		})
 	}, runnerHeader, params, route...))
+
+	if err != nil {
+		w.WriteHeader(500)
+		return
+	}
 }
