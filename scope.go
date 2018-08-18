@@ -12,6 +12,8 @@ import (
 	"github.com/manvalls/wit"
 )
 
+var toRemove = wit.S("[data-wok-remove]")
+
 // Params hold information about route parameters
 type Params = map[string][]string
 
@@ -33,7 +35,7 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	script := "<script>(function(){var w=window.wok=window.wok||{};w.routes={"
+	script := "<script data-wok-remove>(function(){var w=window.wok=window.wok||{};w.routes={"
 
 	i := 0
 	for key, value := range s.routes {
@@ -47,7 +49,7 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 
 	script += "}})()</script>"
 
-	delta = wit.List(delta, wit.Head.One(wit.Prepend(wit.FromString(script))))
+	delta = wit.List(toRemove.All(wit.Remove), delta, wit.Head.One(wit.Prepend(wit.FromString(script))))
 	contentType := httputil.NegotiateContentType(s.req, []string{"text/html", "application/json"}, "text/html")
 
 	var r wit.Renderer

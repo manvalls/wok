@@ -36,9 +36,9 @@ func (d Deduper) Dedupe(key uint, f func(ctx context.Context) wit.Delta) wit.Del
 		k := strconv.Quote(strconv.FormatUint(uint64(key), 36))
 
 		return wit.List(
-			wit.Head.One(wit.Append(wit.FromString(
-				"<script>(function(){var w=window.wok=window.wok||{},h="+h+",k="+k+",a='dedupes',d=w[a]=w[a]||{},l=(d[h]?d[h].split(','):[]);if(l.indexOf(k)==-1)l.push(k);if(l.length)d[h]=l.join()})()</script>",
-			))),
+			wit.Root(wit.Head.One(wit.Append(wit.FromString(
+				"<script data-wok-remove>(function(){var w=window.wok=window.wok||{},h="+h+",k="+k+",a='dedupes',d=w[a]=w[a]||{},l=(d[h]?d[h].split(','):[]);if(l.indexOf(k)==-1)l.push(k);if(l.length)d[h]=l.join()})()</script>",
+			)))),
 			delta,
 		)
 	}
@@ -51,7 +51,7 @@ func (d Deduper) Reset(key uint) wit.Delta {
 	h := strconv.Quote(d.header)
 	k := strconv.Quote(strconv.FormatUint(uint64(key), 36))
 
-	return wit.Head.One(wit.Append(wit.FromString(
-		"<script>(function(){var w=window.wok=window.wok||{},h=" + h + ",k=" + k + ",a='dedupes',d=w[a]=w[a]||{},l=(d[h]?d[h].split(','):[]),i=l.indexOf(k);if(i!=-1)l.splice(i,1);if(l.length)d[h]=l.join();else delete d[h]})()</script>",
-	)))
+	return wit.Root(wit.Head.One(wit.Append(wit.FromString(
+		"<script data-wok-remove>(function(){var w=window.wok=window.wok||{},h=" + h + ",k=" + k + ",a='dedupes',d=w[a]=w[a]||{},l=(d[h]?d[h].split(','):[]),i=l.indexOf(k);if(i!=-1)l.splice(i,1);if(l.length)d[h]=l.join();else delete d[h]})()</script>",
+	))))
 }
