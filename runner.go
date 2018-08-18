@@ -78,6 +78,11 @@ func (r Runner) Run(f func(ctx context.Context) wit.Delta) {
 	}
 }
 
+// RunAppend runs and appends to the internal buffer the given function
+func (r Runner) RunAppend(f func(ctx context.Context) wit.Delta) {
+	r.Slice.RunAppend(r.scope.req.Context(), f)
+}
+
 // RunWithParams executes the given function with the given params, if needed
 func (r Runner) RunWithParams(f func(ctx context.Context, params url.Values, oldParams url.Values) wit.Delta, params ...string) {
 	equal := r.index < r.start
