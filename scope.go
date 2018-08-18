@@ -69,7 +69,7 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 		resHeaders["Vary"] = append(resHeaders["Vary"], header)
 	}
 
-	resHeaders["Vary"] = append(resHeaders["Vary"], "Content-Type")
+	resHeaders["Vary"] = append(resHeaders["Vary"], "Accept")
 	resHeaders["Vary"] = []string{strings.Join(resHeaders["Vary"], ", ")}
 
 	if err == nil {
