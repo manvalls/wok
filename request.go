@@ -2,6 +2,7 @@ package wok
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync"
 
@@ -126,6 +127,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(500)
+		fmt.Fprintln(w, err)
 		return
 	}
 }
