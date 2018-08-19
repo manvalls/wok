@@ -85,6 +85,13 @@ func (r Runner) RunNow(f func() wit.Delta) {
 	}
 }
 
+// RunSync executes the given function synchronously, if needed
+func (r Runner) RunSync(f func() wit.Delta) {
+	if r.index >= r.start {
+		r.Append(wit.RunSync(f))
+	}
+}
+
 // RunAppend runs and appends to the internal buffer the given function
 func (r Runner) RunAppend(f func(ctx context.Context) wit.Delta) {
 	r.Slice.RunAppend(r.scope.req.Context(), f)
@@ -168,9 +175,25 @@ func (r Runner) RunWithParams(f func(ctx context.Context, params url.Values, old
 	})
 }
 
+// RunWithParamsSync executes the given function with the given params synchronously, if needed
+func (r Runner) RunWithParamsSync(f func(params url.Values, oldParams url.Values) wit.Delta, params ...string) {
+	r.RunWithParamsNow(func(params url.Values, oldParams url.Values) wit.Delta {
+		return wit.RunSync(func() wit.Delta {
+			return f(params, oldParams)
+		})
+	})
+}
+
 // RunParamsNow behaves the same way as RunWithParamsNow, but without providing old parameters
 func (r Runner) RunParamsNow(f func(params url.Values) wit.Delta, params ...string) {
 	r.RunWithParamsNow(func(params url.Values, _ url.Values) wit.Delta {
+		return f(params)
+	}, params...)
+}
+
+// RunParamsSync behaves the same way as RunWithParamsSync, but without providing old parameters
+func (r Runner) RunParamsSync(f func(params url.Values) wit.Delta, params ...string) {
+	r.RunWithParamsSync(func(params url.Values, _ url.Values) wit.Delta {
 		return f(params)
 	}, params...)
 }
