@@ -78,13 +78,20 @@ func (r Runner) Run(f func(ctx context.Context) wit.Delta) {
 	}
 }
 
+// RunNow executes the given function right away, if needed
+func (r Runner) RunNow(f func() wit.Delta) {
+	if r.index >= r.start {
+		r.Append(f())
+	}
+}
+
 // RunAppend runs and appends to the internal buffer the given function
 func (r Runner) RunAppend(f func(ctx context.Context) wit.Delta) {
 	r.Slice.RunAppend(r.scope.req.Context(), f)
 }
 
-// RunWithParams executes the given function with the given params, if needed
-func (r Runner) RunWithParams(f func(ctx context.Context, params url.Values, oldParams url.Values) wit.Delta, params ...string) {
+// RunWithParamsNow executes the given function with the given params right away, if needed
+func (r Runner) RunWithParamsNow(f func(params url.Values, oldParams url.Values) wit.Delta, params ...string) {
 	equal := r.index < r.start
 	filteredParams := Params{}
 	filteredOldParams := Params{}
@@ -148,10 +155,24 @@ func (r Runner) RunWithParams(f func(ctx context.Context, params url.Values, old
 	}
 
 	if !equal {
-		r.Append(wit.Run(r.scope.req.Context(), func(ctx context.Context) wit.Delta {
-			return f(ctx, filteredParams, filteredOldParams)
-		}))
+		r.Append(f(filteredParams, filteredOldParams))
 	}
+}
+
+// RunWithParams executes the given function with the given params, if needed
+func (r Runner) RunWithParams(f func(ctx context.Context, params url.Values, oldParams url.Values) wit.Delta, params ...string) {
+	r.RunWithParamsNow(func(params url.Values, oldParams url.Values) wit.Delta {
+		return wit.Run(r.scope.req.Context(), func(ctx context.Context) wit.Delta {
+			return f(ctx, params, oldParams)
+		})
+	})
+}
+
+// RunParamsNow behaves the same way as RunWithParamsNow, but without providing old parameters
+func (r Runner) RunParamsNow(f func(params url.Values) wit.Delta, params ...string) {
+	r.RunWithParamsNow(func(params url.Values, _ url.Values) wit.Delta {
+		return f(params)
+	}, params...)
 }
 
 // RunParams behaves the same way as RunWithParams, but without providing old parameters
