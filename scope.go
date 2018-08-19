@@ -25,13 +25,18 @@ type Scope struct {
 	mutex       sync.Mutex
 }
 
+// StatusCodeGetter holds a status code
+type StatusCodeGetter interface {
+	StatusCode() int
+}
+
 // NewScope builds a new wok scope
 func NewScope(req *http.Request) *Scope {
 	return &Scope{req, map[string]bool{}, map[string]string{}, sync.Mutex{}}
 }
 
 // Write writes the specified delta to the specified ResponseWriter
-func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
+func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta, statusCodeGetter StatusCodeGetter) (err error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -60,10 +65,6 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 		r, err = wit.NewHTMLRenderer(delta)
 	}
 
-	if err != nil && err != wit.ErrEnd {
-		return err
-	}
-
 	resHeaders := writer.Header()
 	for header := range s.usedHeaders {
 		resHeaders["Vary"] = append(resHeaders["Vary"], header)
@@ -75,9 +76,13 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 
 	if err == nil {
 		resHeaders["Content-Type"] = []string{contentType}
+		writer.WriteHeader(statusCodeGetter.StatusCode())
 		return r.Render(writer)
+	} else if err != wit.ErrEnd {
+		return err
 	}
 
+	writer.WriteHeader(statusCodeGetter.StatusCode())
 	return nil
 }
 

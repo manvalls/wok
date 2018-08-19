@@ -3,13 +3,40 @@ package wok
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	"github.com/manvalls/way"
 	"github.com/manvalls/wit"
 )
 
+// StatusCodeGetterSetter holds a status code in a concurrent-safe way
+type StatusCodeGetterSetter struct {
+	mutex      sync.Mutex
+	statusCode int
+}
+
+// StatusCode retrieves the internal status code
+func (sc *StatusCodeGetterSetter) StatusCode() int {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	if sc.statusCode == 0 {
+		return 200
+	}
+
+	return sc.statusCode
+}
+
+// SetStatusCode sets the internal status code
+func (sc *StatusCodeGetterSetter) SetStatusCode(statusCode int) {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+	sc.statusCode = statusCode
+}
+
 // Request holds a list of useful objects together
 type Request struct {
+	*StatusCodeGetterSetter
 	http.ResponseWriter
 	*http.Request
 	Deduper
@@ -72,8 +99,10 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		deduperHeader = "X-Wok-Deduper"
 	}
 
+	sc := &StatusCodeGetterSetter{}
 	err = scope.Write(w, scope.NewRunner(func(runner Runner) {
 		h.Handler(Request{
+			sc,
 			w,
 			r,
 			scope.NewDeduper(deduperHeader),
@@ -81,7 +110,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			scope,
 			h.Router,
 		})
-	}, runnerHeader, params, route...))
+	}, runnerHeader, params, route...), sc)
 
 	if err != nil {
 		w.WriteHeader(500)
