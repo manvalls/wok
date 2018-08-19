@@ -71,6 +71,7 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta) (err error) {
 
 	resHeaders["Vary"] = append(resHeaders["Vary"], "Accept")
 	resHeaders["Vary"] = []string{strings.Join(resHeaders["Vary"], ", ")}
+	resHeaders["X-Response-Url"] = []string{s.req.URL.String()}
 
 	if err == nil {
 		resHeaders["Content-Type"] = []string{contentType}
