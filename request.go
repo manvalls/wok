@@ -72,6 +72,18 @@ func (r Request) Next(handler func(r Request)) {
 	})
 }
 
+// URLRedirect issues an HTTP redirection
+func (r Request) URLRedirect(statusCode int, params way.Params, route ...uint) wit.Delta {
+	redirURL, err := r.GetURL(params, route...)
+	if err != nil {
+		return wit.Error(err)
+	}
+
+	r.ResponseWriter.Header().Set("Location", redirURL)
+	r.SetStatusCode(statusCode)
+	return wit.End
+}
+
 // Handler implements an HTTP handler which provides wok requests
 type Handler struct {
 	Handler       func(r Request)
