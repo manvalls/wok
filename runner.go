@@ -213,6 +213,11 @@ func (r Runner) Redirect(params Params, route ...uint) wit.Delta {
 	return wit.End
 }
 
+// ParamsRedirect issues an internal redirection changing only route parameters
+func (r Runner) ParamsRedirect(params Params) wit.Delta {
+	return r.Redirect(params, r.route...)
+}
+
 // Route returns the current route step
 func (r Runner) Route() uint {
 	if r.index >= len(r.route) {
