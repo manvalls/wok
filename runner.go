@@ -213,6 +213,12 @@ func (r Runner) Redirect(params Params, route ...uint) wit.Delta {
 	return wit.End
 }
 
+// PartialRedirect issues an internal redirection at the current runner,
+// starting from the current route level
+func (r Runner) PartialRedirect(params Params, route ...uint) wit.Delta {
+	return r.Redirect(params, append(r.route[:r.index], route...)...)
+}
+
 // ParamsRedirect issues an internal redirection changing only route parameters
 func (r Runner) ParamsRedirect(params Params) wit.Delta {
 	return r.Redirect(params, r.route...)
