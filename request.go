@@ -89,6 +89,11 @@ func (r Request) URLRedirect(statusCode int, params way.Params, route ...uint) w
 	return wit.End
 }
 
+// PartialURLRedirect issues an HTTP redirection starting from the current route level
+func (r Request) PartialURLRedirect(statusCode int, params way.Params, route ...uint) wit.Delta {
+	return r.URLRedirect(statusCode, params, append(r.route[:r.index], route...)...)
+}
+
 // MaxBytesReader limits the size of a reader
 func (r Request) MaxBytesReader(rc io.ReadCloser, n int64) io.ReadCloser {
 	return http.MaxBytesReader(r.ResponseWriter, rc, n)
