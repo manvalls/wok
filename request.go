@@ -46,6 +46,8 @@ type Request struct {
 	Runner
 	*Scope
 	way.Router
+	RequestHeader  http.Header
+	ResponseHeader http.Header
 }
 
 // NewRunner builds a new runner linked to this request
@@ -82,7 +84,7 @@ func (r Request) URLRedirect(statusCode int, params way.Params, route ...uint) w
 		return wit.Error(err)
 	}
 
-	r.ResponseWriter.Header().Set("Location", redirURL)
+	r.ResponseHeader.Set("Location", redirURL)
 	r.SetStatusCode(statusCode)
 	return wit.End
 }
@@ -144,6 +146,8 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			runner,
 			scope,
 			h.Router,
+			r.Header,
+			w.Header(),
 		})
 	}, runnerHeader, params, route...), sc)
 
