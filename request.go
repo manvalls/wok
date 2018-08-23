@@ -91,7 +91,7 @@ func (r Request) URLRedirect(statusCode int, params way.Params, route ...uint) w
 
 // PartialURLRedirect issues an HTTP redirection starting from the current route level
 func (r Request) PartialURLRedirect(statusCode int, params way.Params, route ...uint) wit.Delta {
-	return r.URLRedirect(statusCode, params, append(r.route[:r.index], route...)...)
+	return r.URLRedirect(statusCode, params, append(way.Clone(r.route[:r.index]), route...)...)
 }
 
 // ParamsURLRedirect issues an HTTP redirection changing only route parameters

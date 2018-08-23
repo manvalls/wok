@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/manvalls/way"
 	"github.com/manvalls/wit"
 )
 
@@ -216,7 +217,7 @@ func (r Runner) Redirect(params Params, route ...uint) wit.Delta {
 // PartialRedirect issues an internal redirection at the current runner,
 // starting from the current route level
 func (r Runner) PartialRedirect(params Params, route ...uint) wit.Delta {
-	return r.Redirect(params, append(r.route[:r.index], route...)...)
+	return r.Redirect(params, append(way.Clone(r.route[:r.index]), route...)...)
 }
 
 // ParamsRedirect issues an internal redirection changing only route parameters
