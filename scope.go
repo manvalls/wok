@@ -40,7 +40,7 @@ func (s *Scope) Write(writer http.ResponseWriter, delta wit.Delta, statusCodeGet
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	script := "<script data-wok-remove>(function(){var w=window.wok=window.wok||{};w.routes={"
+	script := "<script data-wok-remove>(function(){var w=window.SPH=window.SPH||{};w.routes={"
 
 	i := 0
 	for key, value := range s.routes {

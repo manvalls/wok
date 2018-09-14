@@ -37,7 +37,7 @@ func (d Deduper) Dedupe(key uint, f func(ctx context.Context) wit.Delta) wit.Del
 
 		return wit.List(
 			wit.Root(wit.Head.One(wit.Append(wit.FromString(
-				"<script data-wok-remove>(function(){var w=window.wok=window.wok||{},h="+h+",k="+k+",a='dedupes',d=w[a]=w[a]||{},l=(d[h]?d[h].split(','):[]);if(l.indexOf(k)==-1)l.push(k);if(l.length)d[h]=l.join()})()</script>",
+				"<script data-wok-remove>(function(){var w=window.SPH=window.SPH||{},h="+h+",k="+k+",a='dedupes',d=w[a]=w[a]||{},l=(d[h]?d[h].split(','):[]);if(l.indexOf(k)==-1)l.push(k);if(l.length)d[h]=l.join()})()</script>",
 			)))),
 			delta,
 		)
