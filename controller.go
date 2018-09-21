@@ -29,11 +29,11 @@ func List(controllers ...Controller) Controller {
 }
 
 // Delta applies the given delta directly
-func Delta(delta wit.Delta) Controller {
+func Delta(deltas ...wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
-				delta: delta,
+				delta: wit.List(deltas...),
 				async: true,
 			},
 		},
