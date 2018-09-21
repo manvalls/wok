@@ -156,6 +156,19 @@ func (wp ParamsWrapper) SyncSetup(handler func(r Request) wit.Delta) Controller 
 	}
 }
 
+// DeltaSetup applies the given delta directly no matter what the previous state was
+func DeltaSetup(deltas ...wit.Delta) Controller {
+	return Controller{
+		controllers: []controller{
+			{
+				delta: wit.List(deltas...),
+				async: true,
+				setup: true,
+			},
+		},
+	}
+}
+
 // Nil represents an effectless controller
 var Nil = Controller{}
 
