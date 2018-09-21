@@ -113,7 +113,6 @@ func (r Request) Handle(rootNode Node, header string, params Params, route ...ui
 	oldParams, oldRoute := r.FromHeader(header)
 	redirectionOffset := len(route)
 	running := 0
-	prevAsync := false
 
 mainLoop:
 	for i := 0; i <= maxRedirections; i++ {
@@ -128,12 +127,18 @@ mainLoop:
 
 		for _, info := range oldControllersInfo {
 			if info.offset >= offset {
-				info.CancelFunc()
+				if info.handler != nil {
+					info.CancelFunc()
+				}
+
 				continue
 			}
 
 			if !paramsMatch(params, info.params) {
-				info.CancelFunc()
+				if info.handler != nil {
+					info.CancelFunc()
+				}
+
 				if info.setup || paramsChanged(oldParams, params, info.controller.params) {
 					controllersToRun = append(controllersToRun, info)
 				}
@@ -166,13 +171,29 @@ mainLoop:
 		var redirectedParams Params
 		redirectionHandled := false
 
+		checkRedirections := func() {
+			if redirectionHandled || (redirectedParams == nil && redirectedRoute == nil) {
+				return
+			}
+
+			redirectionHandled = true
+			if redirectedParams != nil {
+				params = redirectedParams
+			}
+
+			if redirectedRoute != nil {
+				redirectionHandled = true
+				redirectionOffset = getOffset(route, redirectedRoute)
+				route = redirectedRoute
+			}
+		}
+
 		for _, info := range controllersToRun {
 			if redirectionHandled && info.offset >= redirectionOffset {
-				prevAsync = info.async
 				continue
 			}
 
-			if !(prevAsync && info.async) {
+			if !info.async {
 				for running > 0 {
 					cond.Wait()
 
@@ -185,49 +206,59 @@ mainLoop:
 
 					r.customBodyMutex.Unlock()
 
-					if redirectedParams != nil {
-						params = redirectedParams
-					}
-
-					if !redirectionHandled && redirectedRoute != nil {
-						redirectionHandled = true
-						redirectionOffset = getOffset(route, redirectedRoute)
-						route = redirectedRoute
-					}
+					checkRedirections()
 
 					if redirectionHandled && info.offset >= redirectionOffset {
-						prevAsync = info.async
 						continue
 					}
 				}
 			}
 
-			prevAsync = info.async
-
-			subRequest := r
-			subRequest.Context, info.CancelFunc = context.WithCancel(r.Context)
-
-			subRequest.redirectCond = cond
-			subRequest.redirectedRoute = &redirectedRoute
-			subRequest.redirectedParams = &redirectedParams
-
-			subRequest.route = route
-			subRequest.index = info.offset
-
 			info.params = pickParams(params, info.controller.params)
-			subRequest.Params = cloneParams(info.params)
+			info.delta = info.controller.delta
 			controllersInfo = append(controllersInfo, info)
 
-			running++
+			if info.handler != nil {
+				subRequest := r
+				subRequest.Context, info.CancelFunc = context.WithCancel(r.Context)
 
-			go func(info *controllerInfo) {
-				info.delta = info.controller.handler(subRequest)
+				subRequest.redirectCond = cond
+				subRequest.redirectedRoute = &redirectedRoute
+				subRequest.redirectedParams = &redirectedParams
 
-				cond.L.Lock()
-				running--
-				cond.Broadcast()
-				cond.L.Unlock()
-			}(info)
+				subRequest.route = route
+				subRequest.index = info.offset
+
+				subRequest.Params = cloneParams(info.params)
+
+				if info.async {
+					running++
+
+					go func(info *controllerInfo) {
+						info.delta = info.controller.handler(subRequest)
+
+						cond.L.Lock()
+						running--
+						cond.Broadcast()
+						cond.L.Unlock()
+					}(info)
+				} else {
+					cond.L.Unlock()
+					info.delta = info.controller.handler(subRequest)
+					cond.L.Lock()
+
+					r.customBodyMutex.Lock()
+
+					if *r.customBody {
+						r.customBodyMutex.Unlock()
+						break mainLoop
+					}
+
+					r.customBodyMutex.Unlock()
+
+					checkRedirections()
+				}
+			}
 		}
 
 		for redirectedRoute == nil && redirectedParams == nil && running > 0 {
@@ -242,14 +273,7 @@ mainLoop:
 
 			r.customBodyMutex.Unlock()
 
-			if redirectedParams != nil {
-				params = redirectedParams
-			}
-
-			if !redirectionHandled && redirectedRoute != nil {
-				redirectionOffset = getOffset(route, redirectedRoute)
-				route = redirectedRoute
-			}
+			checkRedirections()
 		}
 
 		r.customBodyMutex.Lock()

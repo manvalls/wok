@@ -4,6 +4,7 @@ import "github.com/manvalls/wit"
 
 type controller struct {
 	handler func(r Request) wit.Delta
+	delta   wit.Delta
 	async   bool
 	setup   bool
 	params  []string
@@ -25,6 +26,18 @@ func List(controllers ...Controller) Controller {
 	}
 
 	return Controller{list}
+}
+
+// Delta applies the given delta directly
+func Delta(delta wit.Delta) Controller {
+	return Controller{
+		controllers: []controller{
+			{
+				delta: delta,
+				async: true,
+			},
+		},
+	}
 }
 
 // Async handles the given request in parallel with other async controllers
