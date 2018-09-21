@@ -229,7 +229,7 @@ mainLoop:
 				subRequest.route = route
 				subRequest.index = info.offset
 
-				subRequest.Params = cloneParams(info.params)
+				subRequest.Values = cloneParams(info.params)
 
 				if info.async {
 					running++

@@ -91,18 +91,18 @@ func SyncSetup(handler func(r Request) wit.Delta) Controller {
 	}
 }
 
-// WithParams holds a list of request parameters
-type WithParams struct {
+// ParamsWrapper holds a list of request parameters
+type ParamsWrapper struct {
 	params []string
 }
 
 // With makes the given list of parameters available to the derived controllers
-func With(params ...string) WithParams {
-	return WithParams{params}
+func With(params ...string) ParamsWrapper {
+	return ParamsWrapper{params}
 }
 
 // Async handles the given request in parallel with other async controllers
-func (wp WithParams) Async(handler func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) Async(handler func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -116,7 +116,7 @@ func (wp WithParams) Async(handler func(r Request) wit.Delta) Controller {
 
 // Sync handles the given request sequentially, no other controller is allowed
 // to run at the same time
-func (wp WithParams) Sync(handler func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) Sync(handler func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -129,7 +129,7 @@ func (wp WithParams) Sync(handler func(r Request) wit.Delta) Controller {
 
 // AsyncSetup is always run at the current step no matter what the previous state was,
 // in parallel
-func (wp WithParams) AsyncSetup(handler func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) AsyncSetup(handler func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -144,7 +144,7 @@ func (wp WithParams) AsyncSetup(handler func(r Request) wit.Delta) Controller {
 
 // SyncSetup is always run at the current step no matter what the previous state was,
 // sequentially
-func (wp WithParams) SyncSetup(handler func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) SyncSetup(handler func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{

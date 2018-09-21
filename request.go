@@ -24,7 +24,7 @@ type Request struct {
 	http.ResponseWriter
 	context.Context
 	way.Router
-	Params url.Values
+	url.Values
 
 	*StatusCodeGetterSetter
 
