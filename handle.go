@@ -111,7 +111,7 @@ func (r Request) Handle(rootNode Node, header string, params Params, route ...ui
 
 	controllersInfo := []*controllerInfo{}
 	oldParams, oldRoute := r.FromHeader(header)
-	redirectionOffset := len(route)
+	redirectionOffset := 0
 	running := 0
 
 mainLoop:
@@ -121,12 +121,13 @@ mainLoop:
 		controllersInfo = []*controllerInfo{}
 
 		offset := getOffset(oldRoute, route)
-		if redirectionOffset < offset {
-			offset = redirectionOffset
+		minOffset := offset
+		if redirectionOffset < minOffset {
+			minOffset = redirectionOffset
 		}
 
 		for _, info := range oldControllersInfo {
-			if info.offset >= offset {
+			if info.offset >= minOffset {
 				if info.handler != nil {
 					info.CancelFunc()
 				}
