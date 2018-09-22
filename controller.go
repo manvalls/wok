@@ -3,10 +3,10 @@ package wok
 import "github.com/manvalls/wit"
 
 type controller struct {
-	handler func(r Request) wit.Delta
+	fn      func(r Request) wit.Delta
 	delta   wit.Delta
 	async   bool
-	setup   bool
+	handler bool
 	params  []string
 }
 
@@ -41,12 +41,12 @@ func Delta(deltas ...wit.Delta) Controller {
 }
 
 // Async handles the given request in parallel with other async controllers
-func Async(handler func(r Request) wit.Delta) Controller {
+func Async(fn func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
-				handler: handler,
-				async:   true,
+				fn:    fn,
+				async: true,
 			},
 		},
 	}
@@ -54,38 +54,38 @@ func Async(handler func(r Request) wit.Delta) Controller {
 
 // Sync handles the given request sequentially, no other controller is allowed
 // to run at the same time
-func Sync(handler func(r Request) wit.Delta) Controller {
+func Sync(fn func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
-				handler: handler,
+				fn: fn,
 			},
 		},
 	}
 }
 
-// AsyncSetup is always run at the current step no matter what the previous state was,
+// AsyncHandler is always run at the current step no matter what the previous state was,
 // in parallel
-func AsyncSetup(handler func(r Request) wit.Delta) Controller {
+func AsyncHandler(fn func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
-				handler: handler,
+				fn:      fn,
 				async:   true,
-				setup:   true,
+				handler: true,
 			},
 		},
 	}
 }
 
-// SyncSetup is always run at the current step no matter what the previous state was,
+// SyncHandler is always run at the current step no matter what the previous state was,
 // sequentially
-func SyncSetup(handler func(r Request) wit.Delta) Controller {
+func SyncHandler(fn func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
-				handler: handler,
-				setup:   true,
+				fn:      fn,
+				handler: true,
 			},
 		},
 	}
@@ -102,13 +102,13 @@ func With(params ...string) ParamsWrapper {
 }
 
 // Async handles the given request in parallel with other async controllers
-func (wp ParamsWrapper) Async(handler func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) Async(fn func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
-				handler: handler,
-				async:   true,
-				params:  wp.params,
+				fn:     fn,
+				async:  true,
+				params: wp.params,
 			},
 		},
 	}
@@ -116,54 +116,54 @@ func (wp ParamsWrapper) Async(handler func(r Request) wit.Delta) Controller {
 
 // Sync handles the given request sequentially, no other controller is allowed
 // to run at the same time
-func (wp ParamsWrapper) Sync(handler func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) Sync(fn func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
-				handler: handler,
-				params:  wp.params,
+				fn:     fn,
+				params: wp.params,
 			},
 		},
 	}
 }
 
-// AsyncSetup is always run at the current step no matter what the previous state was,
+// AsyncHandler is always run at the current step no matter what the previous state was,
 // in parallel
-func (wp ParamsWrapper) AsyncSetup(handler func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) AsyncHandler(fn func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
-				handler: handler,
+				fn:      fn,
 				async:   true,
-				setup:   true,
+				handler: true,
 				params:  wp.params,
 			},
 		},
 	}
 }
 
-// SyncSetup is always run at the current step no matter what the previous state was,
+// SyncHandler is always run at the current step no matter what the previous state was,
 // sequentially
-func (wp ParamsWrapper) SyncSetup(handler func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) SyncHandler(fn func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
-				handler: handler,
-				setup:   true,
+				fn:      fn,
+				handler: true,
 				params:  wp.params,
 			},
 		},
 	}
 }
 
-// DeltaSetup applies the given delta directly no matter what the previous state was
-func DeltaSetup(deltas ...wit.Delta) Controller {
+// DeltaHandler applies the given delta directly no matter what the previous state was
+func DeltaHandler(deltas ...wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
-				delta: wit.List(deltas...),
-				async: true,
-				setup: true,
+				delta:   wit.List(deltas...),
+				async:   true,
+				handler: true,
 			},
 		},
 	}

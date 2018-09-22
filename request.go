@@ -50,7 +50,7 @@ type Request struct {
 	fullParams       Params
 }
 
-// UseEmptyBody tells the handler to send an empty body as the response of this request
+// UseEmptyBody tells the fn to send an empty body as the response of this request
 func (r Request) UseEmptyBody() {
 	r.redirectCond.L.Lock()
 	defer r.redirectCond.L.Unlock()
@@ -63,7 +63,7 @@ func (r Request) UseEmptyBody() {
 	r.redirectCond.Broadcast()
 }
 
-// UseCustomBody tells the handler to send the provided reader as the response of this request
+// UseCustomBody tells the fn to send the provided reader as the response of this request
 func (r Request) UseCustomBody(reader io.Reader) {
 	r.redirectCond.L.Lock()
 	defer r.redirectCond.L.Unlock()
@@ -229,7 +229,7 @@ func (r Request) ParamsURLRedirect(statusCode int, params way.Params) error {
 
 // - Internal redirections
 
-// Redirect issues an internal redirection at the current handler
+// Redirect issues an internal redirection at the current fn
 func (r Request) Redirect(params Params, route ...uint) {
 	r.redirectCond.L.Lock()
 	defer r.redirectCond.L.Unlock()
@@ -239,7 +239,7 @@ func (r Request) Redirect(params Params, route ...uint) {
 	r.redirectCond.Broadcast()
 }
 
-// PartialRedirect issues an internal redirection at the current handler,
+// PartialRedirect issues an internal redirection at the current fn,
 // starting from the current route level
 func (r Request) PartialRedirect(params Params, route ...uint) {
 	r.Redirect(params, append(way.Clone(r.route[:r.index]), route...)...)

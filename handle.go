@@ -128,7 +128,7 @@ mainLoop:
 
 		for _, info := range oldControllersInfo {
 			if info.offset >= minOffset {
-				if info.handler != nil {
+				if info.fn != nil {
 					info.CancelFunc()
 				}
 
@@ -136,11 +136,11 @@ mainLoop:
 			}
 
 			if !paramsMatch(params, info.params) {
-				if info.handler != nil {
+				if info.fn != nil {
 					info.CancelFunc()
 				}
 
-				if info.setup || paramsChanged(oldParams, params, info.controller.params) {
+				if info.handler || paramsChanged(oldParams, params, info.controller.params) {
 					controllersToRun = append(controllersToRun, info)
 				}
 				continue
@@ -158,7 +158,7 @@ mainLoop:
 			for i := redirectionOffset; i < len(route); i++ {
 				node = node.Child(route[i])
 				for _, c := range node.Controller().controllers {
-					if c.setup || i >= offset || paramsChanged(oldParams, params, c.params) {
+					if c.handler || i >= offset || paramsChanged(oldParams, params, c.params) {
 						controllersToRun = append(controllersToRun, &controllerInfo{
 							controller: c,
 							offset:     i,
@@ -219,7 +219,7 @@ mainLoop:
 			info.delta = info.controller.delta
 			controllersInfo = append(controllersInfo, info)
 
-			if info.handler != nil {
+			if info.fn != nil {
 				subRequest := r
 				subRequest.Context, info.CancelFunc = context.WithCancel(r.Context)
 
@@ -236,7 +236,7 @@ mainLoop:
 					running++
 
 					go func(info *controllerInfo) {
-						info.delta = info.controller.handler(subRequest)
+						info.delta = info.controller.fn(subRequest)
 
 						cond.L.Lock()
 						running--
@@ -245,7 +245,7 @@ mainLoop:
 					}(info)
 				} else {
 					cond.L.Unlock()
-					info.delta = info.controller.handler(subRequest)
+					info.delta = info.controller.fn(subRequest)
 					cond.L.Lock()
 
 					r.customBodyMutex.Lock()

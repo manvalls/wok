@@ -14,7 +14,7 @@ import (
 
 var toRemove = wit.S("[data-wok-remove]")
 
-// Handler implements an HTTP handler which provides wok requests
+// Handler implements an HTTP fn which provides wok requests
 type Handler struct {
 	Root        func() Node
 	RouteHeader string
