@@ -18,6 +18,14 @@ type headerAndValue struct {
 	value  string
 }
 
+type deduper struct {
+	loadedDependencies     map[uint]bool
+	firstDeduperElement    *deduperElement
+	lastDeduperElement     *deduperElement
+	indexedDeduperElements map[uint]*deduperElement
+	deduperMutex           *sync.Mutex
+}
+
 // Request wraps an HTTP request
 type Request struct {
 	*http.Request
@@ -48,6 +56,8 @@ type Request struct {
 	redirectedParams *Params
 	redirectCond     *sync.Cond
 	fullParams       Params
+
+	*deduper
 }
 
 // UseEmptyBody tells the fn to send an empty body as the response of this request
@@ -264,6 +274,68 @@ func (r Request) ChangeParams(modifier func(Params)) {
 
 	*r.redirectedParams = newParams
 	r.redirectCond.Broadcast()
+}
+
+// - Deduper
+
+type deduperElement struct {
+	next *deduperElement
+	prev *deduperElement
+	key  uint
+	n    uint
+}
+
+// Load marks the provided dependency as required
+func (r Request) Load(dependency uint) {
+	if r.loadedDependencies[dependency] {
+		return
+	}
+
+	r.deduperMutex.Lock()
+	defer r.deduperMutex.Unlock()
+
+	elem := r.indexedDeduperElements[dependency]
+	if elem == nil {
+		elem = &deduperElement{
+			prev: r.lastDeduperElement,
+			key:  dependency,
+		}
+
+		r.lastDeduperElement = elem
+		if r.firstDeduperElement == nil {
+			r.firstDeduperElement = elem
+		}
+	}
+
+	elem.n++
+	go func() {
+		<-r.Done()
+		r.deduperMutex.Lock()
+		defer r.deduperMutex.Unlock()
+
+		elem.n--
+		if elem.n > 0 {
+			return
+		}
+
+		if r.firstDeduperElement == elem {
+			r.firstDeduperElement = elem.next
+		}
+
+		if r.lastDeduperElement == elem {
+			r.lastDeduperElement = elem.prev
+		}
+
+		if elem.prev != nil {
+			elem.prev.next = elem.next
+		}
+
+		if elem.next != nil {
+			elem.next.prev = elem.prev
+		}
+
+		delete(r.indexedDeduperElements, dependency)
+	}()
 }
 
 // - Aliases

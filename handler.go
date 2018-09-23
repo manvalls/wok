@@ -17,7 +17,9 @@ var toRemove = wit.S("[data-wok-remove]")
 // Handler implements an HTTP fn which provides wok requests
 type Handler struct {
 	Root        func() Node
+	Deps        func(uint) wit.Delta
 	RouteHeader string
+	DepsHeader  string
 	way.Router
 }
 
@@ -31,6 +33,11 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	routeHeader := h.RouteHeader
 	if routeHeader == "" {
 		routeHeader = "X-Wok-Route"
+	}
+
+	depsHeader := h.DepsHeader
+	if depsHeader == "" {
+		depsHeader = "X-Wok-Deps"
 	}
 
 	var customBodyReader io.Reader
@@ -56,9 +63,49 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		vary:      make(map[string]int),
 		varyMutex: &sync.Mutex{},
+
+		deduper: &deduper{
+			indexedDeduperElements: make(map[uint]*deduperElement),
+			deduperMutex:           &sync.Mutex{},
+		},
+	}
+
+	if h.Deps != nil {
+		_, deps := request.FromHeader(depsHeader)
+		depsMap := map[uint]bool{}
+		for _, dep := range deps {
+			depsMap[dep] = true
+		}
+
+		request.loadedDependencies = depsMap
 	}
 
 	delta := request.Handle(h.Root(), routeHeader, params, route...)
+
+	if h.Deps != nil {
+		request.deduperMutex.Lock()
+		defer request.deduperMutex.Unlock()
+		request.Vary(depsHeader)
+
+		if request.firstDeduperElement != nil {
+			list := []uint{}
+
+			elem := request.firstDeduperElement
+			for elem != nil {
+				list = append(list, elem.key)
+				elem = elem.next
+			}
+
+			deltas := make([]wit.Delta, len(list))
+			for i, key := range list {
+				deltas[i] = h.Deps(key)
+			}
+
+			script := "<script data-wok-remove>!function(){var n,o='" + depsHeader + "',i=window.SPH=window.SPH||{},p=i.deps=i.deps||{},s={},t=[],w=(p[o]?p[o].split(','):[]).concat('" + ToHeader(nil, list...) + "'.split(','));for(n=0;n<w.length;n++)s.hasOwnProperty(w[n])||(s[w[n]]=1,t.push(w[n]));p[o]=t.join(',')}();</script>"
+
+			delta = wit.List(delta, wit.Head.One(wit.Prepend(wit.FromString(script))), wit.List(deltas...))
+		}
+	}
 
 	request.varyMutex.Lock()
 	defer request.varyMutex.Unlock()
