@@ -194,7 +194,7 @@ mainLoop:
 				continue
 			}
 
-			if !info.async {
+			if info.exclusive {
 				for running > 0 {
 					cond.Wait()
 

@@ -3,11 +3,12 @@ package wok
 import "github.com/manvalls/wit"
 
 type controller struct {
-	fn      func(r Request) wit.Delta
-	delta   wit.Delta
-	async   bool
-	handler bool
-	params  []string
+	fn        func(r Request) wit.Delta
+	delta     wit.Delta
+	async     bool
+	exclusive bool
+	handler   bool
+	params    []string
 }
 
 // Controller describes how to handle a certain request
@@ -52,13 +53,25 @@ func Async(fn func(r Request) wit.Delta) Controller {
 	}
 }
 
-// Sync handles the given request sequentially, no other controller is allowed
-// to run at the same time
+// Sync handles the given request sequentially
 func Sync(fn func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
 				fn: fn,
+			},
+		},
+	}
+}
+
+// Excl handles the given request exclusively, no other controller is allowed
+// to run at the same time
+func Excl(fn func(r Request) wit.Delta) Controller {
+	return Controller{
+		controllers: []controller{
+			{
+				fn:        fn,
+				exclusive: true,
 			},
 		},
 	}
@@ -91,6 +104,20 @@ func SyncHandler(fn func(r Request) wit.Delta) Controller {
 	}
 }
 
+// ExclHandler is always run at the current step no matter what the previous state was,
+// exclusively
+func ExclHandler(fn func(r Request) wit.Delta) Controller {
+	return Controller{
+		controllers: []controller{
+			{
+				fn:        fn,
+				handler:   true,
+				exclusive: true,
+			},
+		},
+	}
+}
+
 // ParamsWrapper holds a list of request parameters
 type ParamsWrapper struct {
 	params []string
@@ -114,14 +141,27 @@ func (wp ParamsWrapper) Async(fn func(r Request) wit.Delta) Controller {
 	}
 }
 
-// Sync handles the given request sequentially, no other controller is allowed
-// to run at the same time
+// Sync handles the given request sequentially
 func (wp ParamsWrapper) Sync(fn func(r Request) wit.Delta) Controller {
 	return Controller{
 		controllers: []controller{
 			{
 				fn:     fn,
 				params: wp.params,
+			},
+		},
+	}
+}
+
+// Excl handles the given request exclusively, no other controller is allowed
+// to run at the same time
+func (wp ParamsWrapper) Excl(fn func(r Request) wit.Delta) Controller {
+	return Controller{
+		controllers: []controller{
+			{
+				fn:        fn,
+				params:    wp.params,
+				exclusive: true,
 			},
 		},
 	}
