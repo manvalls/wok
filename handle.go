@@ -14,7 +14,7 @@ type controllerInfo struct {
 	context.CancelFunc
 	offset int
 	params Params
-	delta  wit.Delta
+	action wit.Action
 }
 
 func getOffset(previousRoute []uint, newRoute []uint) (offset int) {
@@ -103,8 +103,8 @@ type EmptyNode struct {
 	LeafNode
 }
 
-// Handle executes the appropiate controllers and gathers returned deltas
-func (r Request) Handle(rootNode Node, header string, params Params, route ...uint) wit.Delta {
+// Handle executes the appropiate controllers and gathers returned actions
+func (r Request) Handle(rootNode Node, header string, params Params, route ...uint) wit.Action {
 	cond := sync.NewCond(&sync.Mutex{})
 	cond.L.Lock()
 	defer cond.L.Unlock()
@@ -216,7 +216,7 @@ mainLoop:
 			}
 
 			info.params = pickParams(params, info.controller.params)
-			info.delta = info.controller.delta
+			info.action = info.controller.action
 			controllersInfo = append(controllersInfo, info)
 
 			if info.fn != nil {
@@ -236,7 +236,7 @@ mainLoop:
 					running++
 
 					go func(info *controllerInfo) {
-						info.delta = info.controller.fn(subRequest)
+						info.action = info.controller.fn(subRequest)
 
 						cond.L.Lock()
 						running--
@@ -245,7 +245,7 @@ mainLoop:
 					}(info)
 				} else {
 					cond.L.Unlock()
-					info.delta = info.controller.fn(subRequest)
+					info.action = info.controller.fn(subRequest)
 					cond.L.Lock()
 
 					r.customBodyMutex.Lock()
@@ -287,9 +287,9 @@ mainLoop:
 		r.customBodyMutex.Unlock()
 
 		if redirectedRoute == nil && redirectedParams == nil {
-			deltaList := make([]wit.Delta, len(controllersInfo))
+			actionList := make([]wit.Action, len(controllersInfo))
 			for i, info := range controllersInfo {
-				deltaList[i] = info.delta
+				actionList[i] = info.action
 			}
 
 			key := &struct{}{}
@@ -306,7 +306,7 @@ mainLoop:
 			}()
 
 			r.ContextVary(header)
-			return wit.List(deltaList...)
+			return wit.List(actionList...)
 		}
 	}
 

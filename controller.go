@@ -3,8 +3,8 @@ package wok
 import "github.com/manvalls/wit"
 
 type controller struct {
-	fn        func(r Request) wit.Delta
-	delta     wit.Delta
+	fn        func(r Request) wit.Action
+	action    wit.Action
 	async     bool
 	exclusive bool
 	handler   bool
@@ -29,20 +29,20 @@ func List(controllers ...Controller) Controller {
 	return Controller{list}
 }
 
-// Delta applies the given delta directly
-func Delta(deltas ...wit.Delta) Controller {
+// Action applies given actions directly
+func Action(actions ...wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
-				delta: wit.List(deltas...),
-				async: true,
+				action: wit.List(actions...),
+				async:  true,
 			},
 		},
 	}
 }
 
 // Async handles the given request in parallel with other async controllers
-func Async(fn func(r Request) wit.Delta) Controller {
+func Async(fn func(r Request) wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -54,7 +54,7 @@ func Async(fn func(r Request) wit.Delta) Controller {
 }
 
 // Sync handles the given request sequentially
-func Sync(fn func(r Request) wit.Delta) Controller {
+func Sync(fn func(r Request) wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -66,7 +66,7 @@ func Sync(fn func(r Request) wit.Delta) Controller {
 
 // Excl handles the given request exclusively, no other controller is allowed
 // to run at the same time
-func Excl(fn func(r Request) wit.Delta) Controller {
+func Excl(fn func(r Request) wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -79,7 +79,7 @@ func Excl(fn func(r Request) wit.Delta) Controller {
 
 // AsyncHandler is always run at the current step no matter what the previous state was,
 // in parallel
-func AsyncHandler(fn func(r Request) wit.Delta) Controller {
+func AsyncHandler(fn func(r Request) wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -93,7 +93,7 @@ func AsyncHandler(fn func(r Request) wit.Delta) Controller {
 
 // SyncHandler is always run at the current step no matter what the previous state was,
 // sequentially
-func SyncHandler(fn func(r Request) wit.Delta) Controller {
+func SyncHandler(fn func(r Request) wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -106,7 +106,7 @@ func SyncHandler(fn func(r Request) wit.Delta) Controller {
 
 // ExclHandler is always run at the current step no matter what the previous state was,
 // exclusively
-func ExclHandler(fn func(r Request) wit.Delta) Controller {
+func ExclHandler(fn func(r Request) wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -129,7 +129,7 @@ func With(params ...string) ParamsWrapper {
 }
 
 // Async handles the given request in parallel with other async controllers
-func (wp ParamsWrapper) Async(fn func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) Async(fn func(r Request) wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -142,7 +142,7 @@ func (wp ParamsWrapper) Async(fn func(r Request) wit.Delta) Controller {
 }
 
 // Sync handles the given request sequentially
-func (wp ParamsWrapper) Sync(fn func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) Sync(fn func(r Request) wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -155,7 +155,7 @@ func (wp ParamsWrapper) Sync(fn func(r Request) wit.Delta) Controller {
 
 // Excl handles the given request exclusively, no other controller is allowed
 // to run at the same time
-func (wp ParamsWrapper) Excl(fn func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) Excl(fn func(r Request) wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -169,7 +169,7 @@ func (wp ParamsWrapper) Excl(fn func(r Request) wit.Delta) Controller {
 
 // AsyncHandler is always run at the current step no matter what the previous state was,
 // in parallel
-func (wp ParamsWrapper) AsyncHandler(fn func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) AsyncHandler(fn func(r Request) wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -184,7 +184,7 @@ func (wp ParamsWrapper) AsyncHandler(fn func(r Request) wit.Delta) Controller {
 
 // SyncHandler is always run at the current step no matter what the previous state was,
 // sequentially
-func (wp ParamsWrapper) SyncHandler(fn func(r Request) wit.Delta) Controller {
+func (wp ParamsWrapper) SyncHandler(fn func(r Request) wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
@@ -196,12 +196,12 @@ func (wp ParamsWrapper) SyncHandler(fn func(r Request) wit.Delta) Controller {
 	}
 }
 
-// DeltaHandler applies the given delta directly no matter what the previous state was
-func DeltaHandler(deltas ...wit.Delta) Controller {
+// ActionHandler applies given actions directly no matter what the previous state was
+func ActionHandler(actions ...wit.Action) Controller {
 	return Controller{
 		controllers: []controller{
 			{
-				delta:   wit.List(deltas...),
+				action:  wit.List(actions...),
 				async:   true,
 				handler: true,
 			},
