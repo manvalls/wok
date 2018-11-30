@@ -9,8 +9,8 @@ import (
 
 const maxRedirections = 1000
 
-type controllerInfo struct {
-	controller
+type planInfo struct {
+	plan
 	context.CancelFunc
 	offset int
 	params Params
@@ -75,50 +75,41 @@ func cloneParams(params Params) Params {
 	return result
 }
 
-// Node represents a node of the routing tree
-type Node interface {
-	Controller() Controller
-	Child(uint) Node
+// Controller represents a controller of the routing tree
+type Controller interface {
+	Plan() Plan
+	Route(uint) Controller
 }
 
-// RootNode implements a node without controller
-type RootNode struct{}
+// Default implements the default controller
+type Default struct{}
 
-// Controller returns the controller for this node
-func (node RootNode) Controller() Controller {
+// Plan returns the plan for this controller
+func (controller Default) Plan() Plan {
 	return Nil
 }
 
-// LeafNode implements a Node without children
-type LeafNode struct{}
-
-// Child returns the nth child of this node
-func (node LeafNode) Child(id uint) Node {
-	return EmptyNode{}
+// Route returns the nth child of this controller
+func (controller Default) Route(id uint) Controller {
+	return Default{}
 }
 
-// EmptyNode implements a node without children and controller
-type EmptyNode struct {
-	RootNode
-	LeafNode
-}
-
-// Handle executes the appropiate controllers and gathers returned actions
-func (r Request) Handle(rootNode Node, header string, params Params, route ...uint) wit.Action {
+// Handle executes the appropiate plans and gathers returned actions
+func (r Request) Handle(rootController Controller, header string, params Params, route ...uint) wit.Action {
 	cond := sync.NewCond(&sync.Mutex{})
 	cond.L.Lock()
 	defer cond.L.Unlock()
 
-	controllersInfo := []*controllerInfo{}
+	plansInfo := []*planInfo{}
 	oldParams, oldRoute := r.FromHeader(header)
 	redirectionOffset := 0
 	running := 0
 
 mainLoop:
 	for i := 0; i <= maxRedirections; i++ {
-		controllersToRun := []*controllerInfo{}
-		oldControllersInfo := controllersInfo
-		controllersInfo = []*controllerInfo{}
+		plansToRun := []*planInfo{}
+		oldPlansInfo := plansInfo
+		plansInfo = []*planInfo{}
 
 		offset := getOffset(oldRoute, route)
 		minOffset := offset
@@ -126,7 +117,7 @@ mainLoop:
 			minOffset = redirectionOffset
 		}
 
-		for _, info := range oldControllersInfo {
+		for _, info := range oldPlansInfo {
 			if info.offset >= minOffset {
 				if info.fn != nil {
 					info.CancelFunc()
@@ -140,28 +131,28 @@ mainLoop:
 					info.CancelFunc()
 				}
 
-				if info.handler || paramsChanged(oldParams, params, info.controller.params) {
-					controllersToRun = append(controllersToRun, info)
+				if info.handler || paramsChanged(oldParams, params, info.plan.params) {
+					plansToRun = append(plansToRun, info)
 				}
 				continue
 			}
 
-			controllersInfo = append(controllersInfo, info)
+			plansInfo = append(plansInfo, info)
 		}
 
 		if redirectionOffset < len(route) {
-			node := rootNode
+			controller := rootController
 			for i := 0; i < redirectionOffset; i++ {
-				node = node.Child(route[i])
+				controller = controller.Route(route[i])
 			}
 
 			for i := redirectionOffset; i < len(route); i++ {
-				node = node.Child(route[i])
-				for _, c := range node.Controller().controllers {
+				controller = controller.Route(route[i])
+				for _, c := range controller.Plan().Procedure().plans {
 					if c.handler || i >= offset || paramsChanged(oldParams, params, c.params) {
-						controllersToRun = append(controllersToRun, &controllerInfo{
-							controller: c,
-							offset:     i,
+						plansToRun = append(plansToRun, &planInfo{
+							plan:   c,
+							offset: i,
 						})
 					}
 				}
@@ -189,7 +180,7 @@ mainLoop:
 			}
 		}
 
-		for _, info := range controllersToRun {
+		for _, info := range plansToRun {
 			if redirectionHandled && info.offset >= redirectionOffset {
 				continue
 			}
@@ -215,9 +206,9 @@ mainLoop:
 				}
 			}
 
-			info.params = pickParams(params, info.controller.params)
-			info.action = info.controller.action
-			controllersInfo = append(controllersInfo, info)
+			info.params = pickParams(params, info.plan.params)
+			info.action = info.plan.action
+			plansInfo = append(plansInfo, info)
 
 			if info.fn != nil {
 				subRequest := r
@@ -235,8 +226,8 @@ mainLoop:
 				if info.async {
 					running++
 
-					go func(info *controllerInfo) {
-						info.action = info.controller.fn(subRequest)
+					go func(info *planInfo) {
+						info.action = info.plan.fn(subRequest)
 
 						cond.L.Lock()
 						running--
@@ -245,7 +236,7 @@ mainLoop:
 					}(info)
 				} else {
 					cond.L.Unlock()
-					info.action = info.controller.fn(subRequest)
+					info.action = info.plan.fn(subRequest)
 					cond.L.Lock()
 
 					r.customBodyMutex.Lock()
@@ -287,8 +278,8 @@ mainLoop:
 		r.customBodyMutex.Unlock()
 
 		if redirectedRoute == nil && redirectedParams == nil {
-			actionList := make([]wit.Action, len(controllersInfo))
-			for i, info := range controllersInfo {
+			actionList := make([]wit.Action, len(plansInfo))
+			for i, info := range plansInfo {
 				actionList[i] = info.action
 			}
 

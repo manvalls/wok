@@ -2,7 +2,7 @@ package wok
 
 import "github.com/manvalls/wit"
 
-type controller struct {
+type plan struct {
 	fn        func(r Request) wit.Action
 	action    wit.Action
 	async     bool
@@ -11,28 +11,38 @@ type controller struct {
 	params    []string
 }
 
-// Controller describes how to handle a certain request
-type Controller struct {
-	controllers []controller
+// Procedure describes how to handle a certain request
+type Procedure struct {
+	plans []plan
 }
 
-// List groups several controllers together
-func List(controllers ...Controller) Controller {
-	list := []controller{}
+// Procedure returns this procedure itself
+func (p Procedure) Procedure() Procedure {
+	return p
+}
 
-	for _, controller := range controllers {
-		for _, c := range controller.controllers {
+// Plan encapsulates a procedure
+type Plan interface {
+	Procedure() Procedure
+}
+
+// List groups several plans together
+func List(plans ...Plan) Plan {
+	list := []plan{}
+
+	for _, plan := range plans {
+		for _, c := range plan.Procedure().plans {
 			list = append(list, c)
 		}
 	}
 
-	return Controller{list}
+	return Procedure{list}
 }
 
 // Action applies given actions directly
-func Action(actions ...wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+func Action(actions ...wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				action: wit.List(actions...),
 				async:  true,
@@ -41,10 +51,10 @@ func Action(actions ...wit.Action) Controller {
 	}
 }
 
-// Async handles the given request in parallel with other async controllers
-func Async(fn func(r Request) wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+// Async handles the given request in parallel with other async plans
+func Async(fn func(r Request) wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				fn:    fn,
 				async: true,
@@ -54,9 +64,9 @@ func Async(fn func(r Request) wit.Action) Controller {
 }
 
 // Sync handles the given request sequentially
-func Sync(fn func(r Request) wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+func Sync(fn func(r Request) wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				fn: fn,
 			},
@@ -64,11 +74,11 @@ func Sync(fn func(r Request) wit.Action) Controller {
 	}
 }
 
-// Excl handles the given request exclusively, no other controller is allowed
+// Excl handles the given request exclusively, no other plan is allowed
 // to run at the same time
-func Excl(fn func(r Request) wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+func Excl(fn func(r Request) wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				fn:        fn,
 				exclusive: true,
@@ -79,9 +89,9 @@ func Excl(fn func(r Request) wit.Action) Controller {
 
 // AsyncHandler is always run at the current step no matter what the previous state was,
 // in parallel
-func AsyncHandler(fn func(r Request) wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+func AsyncHandler(fn func(r Request) wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				fn:      fn,
 				async:   true,
@@ -93,9 +103,9 @@ func AsyncHandler(fn func(r Request) wit.Action) Controller {
 
 // SyncHandler is always run at the current step no matter what the previous state was,
 // sequentially
-func SyncHandler(fn func(r Request) wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+func SyncHandler(fn func(r Request) wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				fn:      fn,
 				handler: true,
@@ -106,9 +116,9 @@ func SyncHandler(fn func(r Request) wit.Action) Controller {
 
 // ExclHandler is always run at the current step no matter what the previous state was,
 // exclusively
-func ExclHandler(fn func(r Request) wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+func ExclHandler(fn func(r Request) wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				fn:        fn,
 				handler:   true,
@@ -123,15 +133,15 @@ type ParamsWrapper struct {
 	params []string
 }
 
-// With makes the given list of parameters available to the derived controllers
+// With makes the given list of parameters available to the derived plans
 func With(params ...string) ParamsWrapper {
 	return ParamsWrapper{params}
 }
 
-// Async handles the given request in parallel with other async controllers
-func (wp ParamsWrapper) Async(fn func(r Request) wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+// Async handles the given request in parallel with other async plans
+func (wp ParamsWrapper) Async(fn func(r Request) wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				fn:     fn,
 				async:  true,
@@ -142,9 +152,9 @@ func (wp ParamsWrapper) Async(fn func(r Request) wit.Action) Controller {
 }
 
 // Sync handles the given request sequentially
-func (wp ParamsWrapper) Sync(fn func(r Request) wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+func (wp ParamsWrapper) Sync(fn func(r Request) wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				fn:     fn,
 				params: wp.params,
@@ -153,11 +163,11 @@ func (wp ParamsWrapper) Sync(fn func(r Request) wit.Action) Controller {
 	}
 }
 
-// Excl handles the given request exclusively, no other controller is allowed
+// Excl handles the given request exclusively, no other plan is allowed
 // to run at the same time
-func (wp ParamsWrapper) Excl(fn func(r Request) wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+func (wp ParamsWrapper) Excl(fn func(r Request) wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				fn:        fn,
 				params:    wp.params,
@@ -169,9 +179,9 @@ func (wp ParamsWrapper) Excl(fn func(r Request) wit.Action) Controller {
 
 // AsyncHandler is always run at the current step no matter what the previous state was,
 // in parallel
-func (wp ParamsWrapper) AsyncHandler(fn func(r Request) wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+func (wp ParamsWrapper) AsyncHandler(fn func(r Request) wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				fn:      fn,
 				async:   true,
@@ -184,9 +194,9 @@ func (wp ParamsWrapper) AsyncHandler(fn func(r Request) wit.Action) Controller {
 
 // SyncHandler is always run at the current step no matter what the previous state was,
 // sequentially
-func (wp ParamsWrapper) SyncHandler(fn func(r Request) wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+func (wp ParamsWrapper) SyncHandler(fn func(r Request) wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				fn:      fn,
 				handler: true,
@@ -197,9 +207,9 @@ func (wp ParamsWrapper) SyncHandler(fn func(r Request) wit.Action) Controller {
 }
 
 // ActionHandler applies given actions directly no matter what the previous state was
-func ActionHandler(actions ...wit.Action) Controller {
-	return Controller{
-		controllers: []controller{
+func ActionHandler(actions ...wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
 			{
 				action:  wit.List(actions...),
 				async:   true,
@@ -209,10 +219,10 @@ func ActionHandler(actions ...wit.Action) Controller {
 	}
 }
 
-// Nil represents an effectless controller
-var Nil = Controller{}
+// Nil represents an effectless plan
+var Nil = Procedure{}
 
-// IsNil checks whether the given controller is empty or not
-func IsNil(controller Controller) bool {
-	return len(controller.controllers) == 0
+// IsNil checks whether the given plan is empty or not
+func IsNil(plan Plan) bool {
+	return len(plan.Procedure().plans) == 0
 }
