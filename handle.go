@@ -78,7 +78,7 @@ func cloneParams(params Params) Params {
 // Controller represents a controller of the routing tree
 type Controller interface {
 	Plan() Plan
-	Route(uint) Controller
+	Resolve(uint) Controller
 }
 
 // Default implements the default controller
@@ -89,8 +89,8 @@ func (controller Default) Plan() Plan {
 	return Nil
 }
 
-// Route returns the nth child of this controller
-func (controller Default) Route(id uint) Controller {
+// Resolve returns the nth child of this controller
+func (controller Default) Resolve(id uint) Controller {
 	return Default{}
 }
 
@@ -143,11 +143,11 @@ mainLoop:
 		if redirectionOffset < len(route) {
 			controller := rootController
 			for i := 0; i < redirectionOffset; i++ {
-				controller = controller.Route(route[i])
+				controller = controller.Resolve(route[i])
 			}
 
 			for i := redirectionOffset; i < len(route); i++ {
-				controller = controller.Route(route[i])
+				controller = controller.Resolve(route[i])
 				for _, c := range controller.Plan().Procedure().plans {
 					if c.handler || i >= offset || paramsChanged(oldParams, params, c.params) {
 						plansToRun = append(plansToRun, &planInfo{
