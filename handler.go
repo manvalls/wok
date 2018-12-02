@@ -17,7 +17,7 @@ var toRemove = wit.S("[data-wok-remove]")
 // Handler implements an HTTP fn which provides wok requests
 type Handler struct {
 	Root        func() Controller
-	Deps        func(uint) wit.Action
+	Deps        func(string) wit.Action
 	RouteHeader string
 	DepsHeader  string
 	way.Router
@@ -65,14 +65,14 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		varyMutex: &sync.Mutex{},
 
 		deduper: &deduper{
-			indexedDeduperElements: make(map[uint]*deduperElement),
+			indexedDeduperElements: make(map[string]*deduperElement),
 			deduperMutex:           &sync.Mutex{},
 		},
 	}
 
 	if h.Deps != nil {
 		_, deps := request.FromHeader(depsHeader)
-		depsMap := map[uint]bool{}
+		depsMap := map[string]bool{}
 		for _, dep := range deps {
 			depsMap[dep] = true
 		}
@@ -88,7 +88,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		request.Vary(depsHeader)
 
 		if request.firstDeduperElement != nil {
-			list := []uint{}
+			list := []string{}
 
 			elem := request.firstDeduperElement
 			for elem != nil {

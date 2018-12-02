@@ -17,7 +17,7 @@ type planInfo struct {
 	action wit.Action
 }
 
-func getOffset(previousRoute []uint, newRoute []uint) (offset int) {
+func getOffset(previousRoute []string, newRoute []string) (offset int) {
 	offset = len(previousRoute)
 	for i, j := range previousRoute {
 		if i >= len(newRoute) || newRoute[i] != j {
@@ -78,7 +78,7 @@ func cloneParams(params Params) Params {
 // Controller represents a controller of the routing tree
 type Controller interface {
 	Plan() Plan
-	Resolve(uint) Controller
+	Resolve(string) Controller
 }
 
 // Default implements the default controller
@@ -90,12 +90,12 @@ func (controller Default) Plan() Plan {
 }
 
 // Resolve returns the nth child of this controller
-func (controller Default) Resolve(id uint) Controller {
+func (controller Default) Resolve(id string) Controller {
 	return Default{}
 }
 
 // Handle executes the appropiate plans and gathers returned actions
-func (r Request) Handle(rootController Controller, header string, params Params, route ...uint) wit.Action {
+func (r Request) Handle(rootController Controller, header string, params Params, route ...string) wit.Action {
 	cond := sync.NewCond(&sync.Mutex{})
 	cond.L.Lock()
 	defer cond.L.Unlock()
@@ -159,7 +159,7 @@ mainLoop:
 			}
 		}
 
-		var redirectedRoute []uint
+		var redirectedRoute []string
 		var redirectedParams Params
 		redirectionHandled := false
 

@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,10 +18,10 @@ type headerAndValue struct {
 }
 
 type deduper struct {
-	loadedDependencies     map[uint]bool
+	loadedDependencies     map[string]bool
 	firstDeduperElement    *deduperElement
 	lastDeduperElement     *deduperElement
-	indexedDeduperElements map[uint]*deduperElement
+	indexedDeduperElements map[string]*deduperElement
 	deduperMutex           *sync.Mutex
 }
 
@@ -39,7 +38,7 @@ type Request struct {
 	RequestHeader  http.Header
 	ResponseHeader http.Header
 
-	route []uint
+	route []string
 	index int
 
 	routes      map[*struct{}]headerAndValue
@@ -52,7 +51,7 @@ type Request struct {
 	customBodyReader *io.Reader
 	customBodyMutex  *sync.Mutex
 
-	redirectedRoute  *[]uint
+	redirectedRoute  *[]string
 	redirectedParams *Params
 	redirectCond     *sync.Cond
 	fullParams       Params
@@ -125,7 +124,7 @@ func (r Request) Vary(headers ...string) {
 type Params = map[string][]string
 
 // FromHeader builds a route path from an HTTP header
-func (r Request) FromHeader(header string) (Params, []uint) {
+func (r Request) FromHeader(header string) (Params, []string) {
 	header = http.CanonicalHeaderKey(header)
 	headerValue := strings.Join(r.Request.Header[header], ",")
 
@@ -143,12 +142,9 @@ func (r Request) FromHeader(header string) (Params, []uint) {
 		rawQuery = parts[1]
 	}
 
-	route := make([]uint, 0)
+	route := make([]string, 0)
 	for _, h := range strings.Split(rawRoute, ",") {
-		n, err := strconv.ParseUint(strings.Trim(h, " "), 36, 64)
-		if err == nil {
-			route = append(route, uint(n))
-		}
+		route = append(route, strings.Trim(h, " "))
 	}
 
 	query, err := url.ParseQuery(rawQuery)
@@ -160,10 +156,10 @@ func (r Request) FromHeader(header string) (Params, []uint) {
 }
 
 // ToHeader maps a route path to a header value
-func ToHeader(params Params, route ...uint) string {
+func ToHeader(params Params, route ...string) string {
 	result := make([]string, len(route))
 	for i, v := range route {
-		result[i] = strconv.FormatUint(uint64(v), 36)
+		result[i] = v
 	}
 
 	var values url.Values
@@ -206,7 +202,7 @@ func (sc *StatusCodeGetterSetter) SetStatusCode(statusCode int) {
 // - URL redirections
 
 // URLRedirect issues an HTTP redirection
-func (r Request) URLRedirect(statusCode int, params way.Params, route ...uint) error {
+func (r Request) URLRedirect(statusCode int, params way.Params, route ...string) error {
 	redirURL, err := r.GetURL(params, route...)
 	if err != nil {
 		return err
@@ -228,7 +224,7 @@ func (r Request) URLRedirect(statusCode int, params way.Params, route ...uint) e
 }
 
 // PartialURLRedirect issues an HTTP redirection starting from the current route level
-func (r Request) PartialURLRedirect(statusCode int, params way.Params, route ...uint) error {
+func (r Request) PartialURLRedirect(statusCode int, params way.Params, route ...string) error {
 	return r.URLRedirect(statusCode, params, append(way.Clone(r.route[:r.index]), route...)...)
 }
 
@@ -240,7 +236,7 @@ func (r Request) ParamsURLRedirect(statusCode int, params way.Params) error {
 // - Internal redirections
 
 // Redirect issues an internal redirection at the current fn
-func (r Request) Redirect(params Params, route ...uint) {
+func (r Request) Redirect(params Params, route ...string) {
 	r.redirectCond.L.Lock()
 	defer r.redirectCond.L.Unlock()
 
@@ -251,7 +247,7 @@ func (r Request) Redirect(params Params, route ...uint) {
 
 // PartialRedirect issues an internal redirection at the current fn,
 // starting from the current route level
-func (r Request) PartialRedirect(params Params, route ...uint) {
+func (r Request) PartialRedirect(params Params, route ...string) {
 	r.Redirect(params, append(way.Clone(r.route[:r.index]), route...)...)
 }
 
@@ -281,12 +277,12 @@ func (r Request) ChangeParams(modifier func(Params)) {
 type deduperElement struct {
 	next *deduperElement
 	prev *deduperElement
-	key  uint
+	key  string
 	n    uint
 }
 
 // Load marks the provided dependency as required
-func (r Request) Load(dependency uint) {
+func (r Request) Load(dependency string) {
 	if r.loadedDependencies[dependency] {
 		return
 	}
