@@ -9,6 +9,7 @@ type plan struct {
 	exclusive bool
 	handler   bool
 	params    []string
+	deps      func(string) wit.Action
 }
 
 // Procedure describes how to handle a certain request
@@ -214,6 +215,17 @@ func ActionHandler(actions ...wit.Action) Plan {
 				action:  wit.List(actions...),
 				async:   true,
 				handler: true,
+			},
+		},
+	}
+}
+
+// Deps handles loaded dependencies
+func Deps(handler func(string) wit.Action) Plan {
+	return Procedure{
+		plans: []plan{
+			{
+				deps: handler,
 			},
 		},
 	}

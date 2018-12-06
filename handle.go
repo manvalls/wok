@@ -75,6 +75,21 @@ func cloneParams(params Params) Params {
 	return result
 }
 
+func getDeps(request *Request) []string {
+	request.deduperMutex.Lock()
+	defer request.deduperMutex.Unlock()
+
+	list := []string{}
+
+	elem := request.firstDeduperElement
+	for elem != nil {
+		list = append(list, elem.key)
+		elem = elem.next
+	}
+
+	return list
+}
+
 // Controller represents a controller of the routing tree
 type Controller interface {
 	Plan() Plan
@@ -149,7 +164,7 @@ mainLoop:
 			for i := redirectionOffset; i < len(route); i++ {
 				controller = controller.Resolve(route[i])
 				for _, c := range controller.Plan().Procedure().plans {
-					if c.handler || i >= offset || paramsChanged(oldParams, params, c.params) {
+					if c.handler || c.deps != nil || i >= offset || paramsChanged(oldParams, params, c.params) {
 						plansToRun = append(plansToRun, &planInfo{
 							plan:   c,
 							offset: i,
@@ -279,8 +294,19 @@ mainLoop:
 
 		if redirectedRoute == nil && redirectedParams == nil {
 			actionList := make([]wit.Action, len(plansInfo))
+			depsList := getDeps(&r)
+
 			for i, info := range plansInfo {
-				actionList[i] = info.action
+				if info.deps != nil {
+					depsActions := []wit.Action{}
+					for _, dep := range depsList {
+						depsActions = append(depsActions, info.deps(dep))
+					}
+
+					actionList[i] = wit.List(depsActions...)
+				} else {
+					actionList[i] = info.action
+				}
 			}
 
 			key := &struct{}{}

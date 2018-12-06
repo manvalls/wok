@@ -17,7 +17,6 @@ var toRemove = wit.S("[data-wok-remove]")
 // Handler implements an HTTP fn which provides wok requests
 type Handler struct {
 	Root        func() Controller
-	Deps        func(string) wit.Action
 	RouteHeader string
 	DepsHeader  string
 	way.Router
@@ -70,41 +69,26 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	if h.Deps != nil {
-		_, deps := request.FromHeader(depsHeader)
-		depsMap := map[string]bool{}
-		for _, dep := range deps {
-			depsMap[dep] = true
-		}
-
-		request.loadedDependencies = depsMap
+	_, deps := request.FromHeader(depsHeader)
+	depsMap := map[string]bool{}
+	for _, dep := range deps {
+		depsMap[dep] = true
 	}
 
+	request.loadedDependencies = depsMap
+
 	delta := request.Handle(h.Root(), routeHeader, params, route...)
+	usedDeps := getDeps(&request)
 
-	if h.Deps != nil {
-		request.deduperMutex.Lock()
-		defer request.deduperMutex.Unlock()
+	if len(usedDeps) != 0 {
 		request.Vary(depsHeader)
+		script := "<script data-wok-remove>!function(){var n,o='" +
+			depsHeader +
+			"',i=window.SPH=window.SPH||{},p=i.deps=i.deps||{},s={},t=[],w=(p[o]?p[o].split(','):[]).concat('" +
+			ToHeader(nil, usedDeps...) +
+			"'.split(','));for(n=0;n<w.length;n++)s.hasOwnProperty(w[n])||(s[w[n]]=1,t.push(w[n]));p[o]=t.join(',')}();</script>"
 
-		if request.firstDeduperElement != nil {
-			list := []string{}
-
-			elem := request.firstDeduperElement
-			for elem != nil {
-				list = append(list, elem.key)
-				elem = elem.next
-			}
-
-			deltas := make([]wit.Action, len(list))
-			for i, key := range list {
-				deltas[i] = h.Deps(key)
-			}
-
-			script := "<script data-wok-remove>!function(){var n,o='" + depsHeader + "',i=window.SPH=window.SPH||{},p=i.deps=i.deps||{},s={},t=[],w=(p[o]?p[o].split(','):[]).concat('" + ToHeader(nil, list...) + "'.split(','));for(n=0;n<w.length;n++)s.hasOwnProperty(w[n])||(s[w[n]]=1,t.push(w[n]));p[o]=t.join(',')}();</script>"
-
-			delta = wit.List(delta, wit.Head.One(wit.Prepend(wit.FromString(script))), wit.List(deltas...))
-		}
+		delta = wit.List(delta, wit.Head.One(wit.Prepend(wit.FromString(script))))
 	}
 
 	request.varyMutex.Lock()

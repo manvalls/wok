@@ -281,14 +281,20 @@ type deduperElement struct {
 	n    uint
 }
 
-// Load marks the provided dependency as required
-func (r Request) Load(dependency string) {
+// Load marks the provided dependencies as required
+func (r Request) Load(dependencies ...string) {
+	r.deduperMutex.Lock()
+	defer r.deduperMutex.Unlock()
+
+	for _, depency := range dependencies {
+		r.load(depency)
+	}
+}
+
+func (r Request) load(dependency string) {
 	if r.loadedDependencies[dependency] {
 		return
 	}
-
-	r.deduperMutex.Lock()
-	defer r.deduperMutex.Unlock()
 
 	elem := r.indexedDeduperElements[dependency]
 	if elem == nil {
