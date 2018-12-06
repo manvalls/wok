@@ -17,6 +17,7 @@ var toRemove = wit.S("[data-wok-remove]")
 // Handler implements an HTTP fn which provides wok requests
 type Handler struct {
 	Root        func() Controller
+	RootName    string
 	RouteHeader string
 	DepsHeader  string
 	way.Router
@@ -28,6 +29,8 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
 		return
 	}
+
+	route = append([]string{h.RootName}, route...)
 
 	routeHeader := h.RouteHeader
 	if routeHeader == "" {

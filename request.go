@@ -126,7 +126,13 @@ type Params = map[string][]string
 // FromHeader builds a route path from an HTTP header
 func (r Request) FromHeader(header string) (Params, []string) {
 	header = http.CanonicalHeaderKey(header)
-	headerValue := strings.Join(r.Request.Header[header], ",")
+
+	h, ok := r.Request.Header[header]
+	if !ok {
+		return url.Values{}, []string{}
+	}
+
+	headerValue := strings.Join(h, ",")
 
 	rawRoute := ""
 	rawQuery := ""
@@ -225,7 +231,7 @@ func (r Request) URLRedirect(statusCode int, params way.Params, route ...string)
 
 // PartialURLRedirect issues an HTTP redirection starting from the current route level
 func (r Request) PartialURLRedirect(statusCode int, params way.Params, route ...string) error {
-	return r.URLRedirect(statusCode, params, append(way.Clone(r.route[:r.index]), route...)...)
+	return r.URLRedirect(statusCode, params, append(way.Clone(r.route[1:r.index]), route...)...)
 }
 
 // ParamsURLRedirect issues an HTTP redirection changing only route parameters
@@ -235,8 +241,7 @@ func (r Request) ParamsURLRedirect(statusCode int, params way.Params) error {
 
 // - Internal redirections
 
-// Redirect issues an internal redirection at the current fn
-func (r Request) Redirect(params Params, route ...string) {
+func (r Request) redirect(params Params, route ...string) {
 	r.redirectCond.L.Lock()
 	defer r.redirectCond.L.Unlock()
 
@@ -245,10 +250,15 @@ func (r Request) Redirect(params Params, route ...string) {
 	r.redirectCond.Broadcast()
 }
 
+// Redirect issues an internal redirection at the current fn
+func (r Request) Redirect(params Params, route ...string) {
+	r.redirect(params, append([]string{r.route[0]}, route...)...)
+}
+
 // PartialRedirect issues an internal redirection at the current fn,
 // starting from the current route level
 func (r Request) PartialRedirect(params Params, route ...string) {
-	r.Redirect(params, append(way.Clone(r.route[:r.index]), route...)...)
+	r.redirect(params, append(way.Clone(r.route[:r.index]), route...)...)
 }
 
 // ParamsRedirect issues an internal redirection changing only route parameters

@@ -157,12 +157,15 @@ mainLoop:
 
 		if redirectionOffset < len(route) {
 			controller := rootController
-			for i := 0; i < redirectionOffset; i++ {
+			for i := 1; i < redirectionOffset; i++ {
 				controller = controller.Resolve(route[i])
 			}
 
 			for i := redirectionOffset; i < len(route); i++ {
-				controller = controller.Resolve(route[i])
+				if i != 0 {
+					controller = controller.Resolve(route[i])
+				}
+
 				for _, c := range controller.Plan().Procedure().plans {
 					if c.handler || c.deps != nil || i >= offset || paramsChanged(oldParams, params, c.params) {
 						plansToRun = append(plansToRun, &planInfo{
@@ -189,7 +192,6 @@ mainLoop:
 			}
 
 			if redirectedRoute != nil {
-				redirectionHandled = true
 				redirectionOffset = getOffset(route, redirectedRoute)
 				route = redirectedRoute
 			}
