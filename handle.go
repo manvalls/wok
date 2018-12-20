@@ -12,9 +12,10 @@ const maxRedirections = 1000
 type planInfo struct {
 	plan
 	context.CancelFunc
-	offset int
-	params Params
-	action wit.Action
+	offset    int
+	params    Params
+	oldParams Params
+	action    wit.Action
 }
 
 func getOffset(previousRoute []string, newRoute []string) (offset int) {
@@ -224,6 +225,7 @@ mainLoop:
 			}
 
 			info.params = pickParams(params, info.plan.params)
+			info.oldParams = pickParams(oldParams, info.plan.params)
 			info.action = info.plan.action
 			plansInfo = append(plansInfo, info)
 
@@ -239,6 +241,7 @@ mainLoop:
 				subRequest.index = info.offset
 
 				subRequest.Values = cloneParams(info.params)
+				subRequest.OldParams = cloneParams(info.oldParams)
 
 				if info.async {
 					running++

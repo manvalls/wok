@@ -32,6 +32,7 @@ type Request struct {
 	context.Context
 	way.Router
 	url.Values
+	OldParams url.Values
 
 	*StatusCodeGetterSetter
 
