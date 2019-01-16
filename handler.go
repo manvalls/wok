@@ -1,7 +1,6 @@
 package wok
 
 import (
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -42,23 +41,23 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		depsHeader = "X-Wok-Deps"
 	}
 
-	var customBodyReader io.Reader
-	customBody := false
+	var customHandler func(http.ResponseWriter)
+	custom := false
 
 	request := Request{
-		Request:        r,
-		ResponseWriter: w,
-		Context:        r.Context(),
-		Router:         h.Router,
+		Request: r,
+		w:       w,
+		Context: r.Context(),
+		Router:  h.Router,
 
 		RequestHeader:  r.Header,
 		ResponseHeader: w.Header(),
 
 		StatusCodeGetterSetter: &StatusCodeGetterSetter{},
 
-		customBody:       &customBody,
-		customBodyReader: &customBodyReader,
-		customBodyMutex:  &sync.Mutex{},
+		custom:        &custom,
+		customHandler: &customHandler,
+		customMutex:   &sync.Mutex{},
 
 		routes:      make(map[*struct{}]headerAndValue),
 		routesMutex: &sync.Mutex{},
@@ -104,10 +103,10 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	request.customBodyMutex.Lock()
-	defer request.customBodyMutex.Unlock()
+	request.customMutex.Lock()
+	defer request.customMutex.Unlock()
 
-	if !customBody {
+	if !custom {
 		request.routesMutex.Lock()
 		defer request.routesMutex.Unlock()
 
@@ -149,9 +148,10 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		renderer.Render(w)
 	} else {
 		resHeaders["Vary"] = []string{strings.Join(resHeaders["Vary"], ", ")}
-		w.WriteHeader(request.StatusCode())
-		if customBodyReader != nil {
-			io.Copy(w, customBodyReader)
+		if customHandler != nil {
+			customHandler(w)
+		} else {
+			w.WriteHeader(request.StatusCode())
 		}
 	}
 }

@@ -207,14 +207,14 @@ mainLoop:
 				for running > 0 {
 					cond.Wait()
 
-					r.customBodyMutex.Lock()
+					r.customMutex.Lock()
 
-					if *r.customBody {
-						r.customBodyMutex.Unlock()
+					if *r.custom {
+						r.customMutex.Unlock()
 						break mainLoop
 					}
 
-					r.customBodyMutex.Unlock()
+					r.customMutex.Unlock()
 
 					checkRedirections()
 
@@ -259,14 +259,14 @@ mainLoop:
 					info.action = info.plan.fn(subRequest)
 					cond.L.Lock()
 
-					r.customBodyMutex.Lock()
+					r.customMutex.Lock()
 
-					if *r.customBody {
-						r.customBodyMutex.Unlock()
+					if *r.custom {
+						r.customMutex.Unlock()
 						break mainLoop
 					}
 
-					r.customBodyMutex.Unlock()
+					r.customMutex.Unlock()
 
 					checkRedirections()
 				}
@@ -276,26 +276,26 @@ mainLoop:
 		for redirectedRoute == nil && redirectedParams == nil && running > 0 {
 			cond.Wait()
 
-			r.customBodyMutex.Lock()
+			r.customMutex.Lock()
 
-			if *r.customBody {
-				r.customBodyMutex.Unlock()
+			if *r.custom {
+				r.customMutex.Unlock()
 				break mainLoop
 			}
 
-			r.customBodyMutex.Unlock()
+			r.customMutex.Unlock()
 
 			checkRedirections()
 		}
 
-		r.customBodyMutex.Lock()
+		r.customMutex.Lock()
 
-		if *r.customBody {
-			r.customBodyMutex.Unlock()
+		if *r.custom {
+			r.customMutex.Unlock()
 			break mainLoop
 		}
 
-		r.customBodyMutex.Unlock()
+		r.customMutex.Unlock()
 
 		if redirectedRoute == nil && redirectedParams == nil {
 			actionList := make([]wit.Action, len(plansInfo))

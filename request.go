@@ -28,7 +28,7 @@ type deduper struct {
 // Request wraps an HTTP request
 type Request struct {
 	*http.Request
-	http.ResponseWriter
+	w http.ResponseWriter
 	context.Context
 	way.Router
 	url.Values
@@ -48,9 +48,9 @@ type Request struct {
 	vary      map[string]int
 	varyMutex *sync.Mutex
 
-	customBody       *bool
-	customBodyReader *io.Reader
-	customBodyMutex  *sync.Mutex
+	custom        *bool
+	customHandler *func(http.ResponseWriter)
+	customMutex   *sync.Mutex
 
 	redirectedRoute  *[]string
 	redirectedParams *Params
@@ -60,30 +60,45 @@ type Request struct {
 	*deduper
 }
 
-// UseEmptyBody tells the fn to send an empty body as the response of this request
-func (r Request) UseEmptyBody() {
+// HandleResponse tells the controller how to handle the response
+func (r Request) HandleResponse(f func(http.ResponseWriter)) {
 	r.redirectCond.L.Lock()
 	defer r.redirectCond.L.Unlock()
 
-	r.customBodyMutex.Lock()
-	defer r.customBodyMutex.Unlock()
+	r.customMutex.Lock()
+	defer r.customMutex.Unlock()
 
-	*r.customBody = true
-	*r.customBodyReader = nil
+	if *r.custom {
+		return
+	}
+
+	*r.custom = true
+	*r.customHandler = f
 	r.redirectCond.Broadcast()
 }
 
-// UseCustomBody tells the fn to send the provided reader as the response of this request
+// HandleBody tells the controller how to handle the response body
+func (r Request) HandleBody(f func(http.ResponseWriter)) {
+	r.HandleResponse(func(w http.ResponseWriter) {
+		code := r.StatusCode()
+		if code != http.StatusOK {
+			w.WriteHeader(code)
+		}
+
+		f(w)
+	})
+}
+
+// UseEmptyBody tells the controller to send an empty body as the response of this request
+func (r Request) UseEmptyBody() {
+	r.HandleBody(nil)
+}
+
+// UseCustomBody tells the controller to send the provided reader as the response of this request
 func (r Request) UseCustomBody(reader io.Reader) {
-	r.redirectCond.L.Lock()
-	defer r.redirectCond.L.Unlock()
-
-	r.customBodyMutex.Lock()
-	defer r.customBodyMutex.Unlock()
-
-	*r.customBody = true
-	*r.customBodyReader = reader
-	r.redirectCond.Broadcast()
+	r.HandleBody(func(w http.ResponseWriter) {
+		io.Copy(w, reader)
+	})
 }
 
 // ContextVary adds several headers to the Vary header, for the
@@ -215,18 +230,11 @@ func (r Request) URLRedirect(statusCode int, params way.Params, route ...string)
 		return err
 	}
 
-	r.redirectCond.L.Lock()
-	defer r.redirectCond.L.Unlock()
+	r.HandleResponse(func(w http.ResponseWriter) {
+		w.Header().Set("Location", redirURL)
+		w.WriteHeader(statusCode)
+	})
 
-	r.customBodyMutex.Lock()
-	defer r.customBodyMutex.Unlock()
-
-	*r.customBody = true
-	*r.customBodyReader = nil
-
-	r.ResponseHeader.Set("Location", redirURL)
-	r.SetStatusCode(statusCode)
-	r.redirectCond.Broadcast()
 	return nil
 }
 
@@ -251,12 +259,12 @@ func (r Request) redirect(params Params, route ...string) {
 	r.redirectCond.Broadcast()
 }
 
-// Redirect issues an internal redirection at the current fn
+// Redirect issues an internal redirection at the current controller
 func (r Request) Redirect(params Params, route ...string) {
 	r.redirect(params, append([]string{r.route[0]}, route...)...)
 }
 
-// PartialRedirect issues an internal redirection at the current fn,
+// PartialRedirect issues an internal redirection at the current controller,
 // starting from the current route level
 func (r Request) PartialRedirect(params Params, route ...string) {
 	r.redirect(params, append(way.Clone(r.route[:r.index]), route...)...)
@@ -355,20 +363,24 @@ func (r Request) load(dependency string) {
 
 // MaxBytesReader limits the size of a reader
 func (r Request) MaxBytesReader(rc io.ReadCloser, n int64) io.ReadCloser {
-	return http.MaxBytesReader(r.ResponseWriter, rc, n)
+	return http.MaxBytesReader(r.w, rc, n)
 }
 
 // ServeContent replies to the request using the content in the provided ReadSeeker
 func (r Request) ServeContent(name string, modtime time.Time, content io.ReadSeeker) {
-	http.ServeContent(r.ResponseWriter, r.Request, name, modtime, content)
+	r.HandleBody(func(w http.ResponseWriter) {
+		http.ServeContent(w, r.Request, name, modtime, content)
+	})
 }
 
 // ServeFile replies to the request with the contents of the named file or directory
 func (r Request) ServeFile(name string) {
-	http.ServeFile(r.ResponseWriter, r.Request, name)
+	r.HandleBody(func(w http.ResponseWriter) {
+		http.ServeFile(w, r.Request, name)
+	})
 }
 
 // SetCookie adds a Set-Cookie header to the provided ResponseWriter's headers
 func (r Request) SetCookie(cookie *http.Cookie) {
-	http.SetCookie(r.ResponseWriter, cookie)
+	http.SetCookie(r.w, cookie)
 }
