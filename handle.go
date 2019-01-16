@@ -198,6 +198,7 @@ mainLoop:
 			}
 		}
 
+	plansLoop:
 		for _, info := range plansToRun {
 			if redirectionHandled && info.offset >= redirectionOffset {
 				continue
@@ -219,7 +220,7 @@ mainLoop:
 					checkRedirections()
 
 					if redirectionHandled && info.offset >= redirectionOffset {
-						continue
+						continue plansLoop
 					}
 				}
 			}
