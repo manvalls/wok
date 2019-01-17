@@ -28,7 +28,7 @@ type Plan interface {
 }
 
 // List groups several plans together
-func List(plans ...Plan) Plan {
+func List(plans ...Plan) Procedure {
 	list := []plan{}
 
 	for _, plan := range plans {
@@ -41,7 +41,7 @@ func List(plans ...Plan) Plan {
 }
 
 // Action applies given actions directly
-func Action(actions ...wit.Action) Plan {
+func Action(actions ...wit.Action) Procedure {
 	return Procedure{
 		plans: []plan{
 			{
@@ -52,8 +52,8 @@ func Action(actions ...wit.Action) Plan {
 	}
 }
 
-// Async handles the given request in parallel with other async plans
-func Async(fn func(r Request) wit.Action) Plan {
+// Run applies the action returned by the provided function
+func Run(fn func(r Request) wit.Action) Procedure {
 	return Procedure{
 		plans: []plan{
 			{
@@ -64,33 +64,8 @@ func Async(fn func(r Request) wit.Action) Plan {
 	}
 }
 
-// Sync handles the given request sequentially
-func Sync(fn func(r Request) wit.Action) Plan {
-	return Procedure{
-		plans: []plan{
-			{
-				fn: fn,
-			},
-		},
-	}
-}
-
-// Excl handles the given request exclusively, no other plan is allowed
-// to run at the same time
-func Excl(fn func(r Request) wit.Action) Plan {
-	return Procedure{
-		plans: []plan{
-			{
-				fn:        fn,
-				exclusive: true,
-			},
-		},
-	}
-}
-
-// AsyncHandler is always run at the current step no matter what the previous state was,
-// in parallel
-func AsyncHandler(fn func(r Request) wit.Action) Plan {
+// Handle always applies the action returned by the provided function
+func Handle(fn func(r Request) wit.Action) Procedure {
 	return Procedure{
 		plans: []plan{
 			{
@@ -102,31 +77,77 @@ func AsyncHandler(fn func(r Request) wit.Action) Plan {
 	}
 }
 
-// SyncHandler is always run at the current step no matter what the previous state was,
-// sequentially
-func SyncHandler(fn func(r Request) wit.Action) Plan {
-	return Procedure{
-		plans: []plan{
-			{
-				fn:      fn,
-				handler: true,
-			},
-		},
+// Sync marks the current plan as sequential
+func (p Procedure) Sync() Procedure {
+	plans := make([]plan, len(p.plans))
+
+	for i, plan := range p.plans {
+		plan.async = false
+		plans[i] = plan
 	}
+
+	return Procedure{plans: plans}
 }
 
-// ExclHandler is always run at the current step no matter what the previous state was,
-// exclusively
-func ExclHandler(fn func(r Request) wit.Action) Plan {
-	return Procedure{
-		plans: []plan{
-			{
-				fn:        fn,
-				handler:   true,
-				exclusive: true,
-			},
-		},
+// Async marks the current plan as asynchronous
+func (p Procedure) Async() Procedure {
+	plans := make([]plan, len(p.plans))
+
+	for i, plan := range p.plans {
+		plan.async = true
+		plans[i] = plan
 	}
+
+	return Procedure{plans: plans}
+}
+
+// Excl marks the current plan as exclusive, no other plan is allowed
+// to run at the same time
+func (p Procedure) Excl() Procedure {
+	plans := make([]plan, len(p.plans))
+
+	for i, plan := range p.plans {
+		plan.exclusive = true
+		plans[i] = plan
+	}
+
+	return Procedure{plans: plans}
+}
+
+// Incl marks the current plan as inclusive
+func (p Procedure) Incl() Procedure {
+	plans := make([]plan, len(p.plans))
+
+	for i, plan := range p.plans {
+		plan.exclusive = false
+		plans[i] = plan
+	}
+
+	return Procedure{plans: plans}
+}
+
+// Always runs the current plan even if it wouldn't be necessary
+func (p Procedure) Always() Procedure {
+	plans := make([]plan, len(p.plans))
+
+	for i, plan := range p.plans {
+		plan.handler = true
+		plans[i] = plan
+	}
+
+	return Procedure{plans: plans}
+}
+
+// WhenNeeded runs the current plan only when it's needed
+func (p Procedure) WhenNeeded() Procedure {
+	plans := make([]plan, len(p.plans))
+
+	for i, plan := range p.plans {
+		plan.handler = false
+		plans[i] = plan
+	}
+
+	return Procedure{plans: plans}
 }
 
 // ParamsWrapper holds a list of request parameters
@@ -139,8 +160,8 @@ func With(params ...string) ParamsWrapper {
 	return ParamsWrapper{params}
 }
 
-// Async handles the given request in parallel with other async plans
-func (wp ParamsWrapper) Async(fn func(r Request) wit.Action) Plan {
+// Run applies the action returned by the provided function
+func (wp ParamsWrapper) Run(fn func(r Request) wit.Action) Procedure {
 	return Procedure{
 		plans: []plan{
 			{
@@ -152,35 +173,8 @@ func (wp ParamsWrapper) Async(fn func(r Request) wit.Action) Plan {
 	}
 }
 
-// Sync handles the given request sequentially
-func (wp ParamsWrapper) Sync(fn func(r Request) wit.Action) Plan {
-	return Procedure{
-		plans: []plan{
-			{
-				fn:     fn,
-				params: wp.params,
-			},
-		},
-	}
-}
-
-// Excl handles the given request exclusively, no other plan is allowed
-// to run at the same time
-func (wp ParamsWrapper) Excl(fn func(r Request) wit.Action) Plan {
-	return Procedure{
-		plans: []plan{
-			{
-				fn:        fn,
-				params:    wp.params,
-				exclusive: true,
-			},
-		},
-	}
-}
-
-// AsyncHandler is always run at the current step no matter what the previous state was,
-// in parallel
-func (wp ParamsWrapper) AsyncHandler(fn func(r Request) wit.Action) Plan {
+// Handle always applies the action returned by the provided function
+func (wp ParamsWrapper) Handle(fn func(r Request) wit.Action) Procedure {
 	return Procedure{
 		plans: []plan{
 			{
@@ -188,33 +182,6 @@ func (wp ParamsWrapper) AsyncHandler(fn func(r Request) wit.Action) Plan {
 				async:   true,
 				handler: true,
 				params:  wp.params,
-			},
-		},
-	}
-}
-
-// SyncHandler is always run at the current step no matter what the previous state was,
-// sequentially
-func (wp ParamsWrapper) SyncHandler(fn func(r Request) wit.Action) Plan {
-	return Procedure{
-		plans: []plan{
-			{
-				fn:      fn,
-				handler: true,
-				params:  wp.params,
-			},
-		},
-	}
-}
-
-// ActionHandler applies given actions directly no matter what the previous state was
-func ActionHandler(actions ...wit.Action) Plan {
-	return Procedure{
-		plans: []plan{
-			{
-				action:  wit.List(actions...),
-				async:   true,
-				handler: true,
 			},
 		},
 	}
