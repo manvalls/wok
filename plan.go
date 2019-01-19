@@ -3,13 +3,10 @@ package wok
 import "github.com/manvalls/wit"
 
 type plan struct {
-	fn        func(r Request) wit.Action
-	action    wit.Action
-	async     bool
-	exclusive bool
-	handler   bool
-	params    []string
-	deps      func(string) wit.Action
+	fn     func(r Request) wit.Action
+	action wit.Action
+	deps   func(string) wit.Action
+	Options
 }
 
 // Procedure describes how to handle a certain request
@@ -27,8 +24,21 @@ type Plan interface {
 	Procedure() Procedure
 }
 
+// Options holds the list of options selected for a given plan
+type Options struct {
+	async     bool
+	exclusive bool
+	handler   bool
+	params    []string
+}
+
+// DefaultOptions are the options which apply to plans by default
+var DefaultOptions = Options{
+	async: true,
+}
+
 // List groups several plans together
-func List(plans ...Plan) Procedure {
+func List(plans ...Plan) Plan {
 	list := []plan{}
 
 	for _, plan := range plans {
@@ -40,151 +50,101 @@ func List(plans ...Plan) Procedure {
 	return Procedure{list}
 }
 
+// Wrap applies these options to the provided list of plans
+func (o Options) Wrap(plans ...Plan) Plan {
+	list := []plan{}
+
+	for _, plan := range plans {
+		for _, c := range plan.Procedure().plans {
+			c.Options = o
+			list = append(list, c)
+		}
+	}
+
+	return Procedure{list}
+}
+
 // Action applies given actions directly
-func Action(actions ...wit.Action) Procedure {
+func (o Options) Action(actions ...wit.Action) Plan {
 	return Procedure{
 		plans: []plan{
 			{
-				action: wit.List(actions...),
-				async:  true,
+				action:  wit.List(actions...),
+				Options: o,
 			},
 		},
 	}
 }
 
 // Run applies the action returned by the provided function
-func Run(fn func(r Request) wit.Action) Procedure {
+func (o Options) Run(fn func(r Request) wit.Action) Procedure {
 	return Procedure{
 		plans: []plan{
 			{
-				fn:    fn,
-				async: true,
+				fn:      fn,
+				Options: o,
 			},
 		},
 	}
 }
 
 // Handle always applies the action returned by the provided function
-func Handle(fn func(r Request) wit.Action) Procedure {
-	return Procedure{
-		plans: []plan{
-			{
-				fn:      fn,
-				async:   true,
-				handler: true,
-			},
-		},
-	}
+func (o Options) Handle(fn func(r Request) wit.Action) Procedure {
+	return o.Always().Run(fn)
 }
 
-// Sync marks the current plan as sequential
-func (p Procedure) Sync() Procedure {
-	plans := make([]plan, len(p.plans))
-
-	for i, plan := range p.plans {
-		plan.async = false
-		plans[i] = plan
-	}
-
-	return Procedure{plans: plans}
+// Sync runs plans sequentially
+func (o Options) Sync() Options {
+	o.async = true
+	return o
 }
 
-// Async marks the current plan as asynchronous
-func (p Procedure) Async() Procedure {
-	plans := make([]plan, len(p.plans))
-
-	for i, plan := range p.plans {
-		plan.async = true
-		plans[i] = plan
-	}
-
-	return Procedure{plans: plans}
+// Async runs plans in parallel
+func (o Options) Async() Options {
+	o.async = true
+	return o
 }
 
-// Excl marks the current plan as exclusive, no other plan is allowed
+// Excl runs plans exclusively, no other plan is allowed
 // to run at the same time
-func (p Procedure) Excl() Procedure {
-	plans := make([]plan, len(p.plans))
-
-	for i, plan := range p.plans {
-		plan.exclusive = true
-		plans[i] = plan
-	}
-
-	return Procedure{plans: plans}
+func (o Options) Excl() Options {
+	o.exclusive = true
+	return o
 }
 
-// Incl marks the current plan as inclusive
-func (p Procedure) Incl() Procedure {
-	plans := make([]plan, len(p.plans))
-
-	for i, plan := range p.plans {
-		plan.exclusive = false
-		plans[i] = plan
-	}
-
-	return Procedure{plans: plans}
+// Incl runs plans inclusively
+func (o Options) Incl() Options {
+	o.exclusive = false
+	return o
 }
 
-// Always runs the current plan even if it wouldn't be necessary
-func (p Procedure) Always() Procedure {
-	plans := make([]plan, len(p.plans))
-
-	for i, plan := range p.plans {
-		plan.handler = true
-		plans[i] = plan
-	}
-
-	return Procedure{plans: plans}
+// Always runs plans even if it wouldn't be necessary
+func (o Options) Always() Options {
+	o.handler = true
+	return o
 }
 
-// WhenNeeded runs the current plan only when it's needed
-func (p Procedure) WhenNeeded() Procedure {
-	plans := make([]plan, len(p.plans))
-
-	for i, plan := range p.plans {
-		plan.handler = false
-		plans[i] = plan
-	}
-
-	return Procedure{plans: plans}
-}
-
-// ParamsWrapper holds a list of request parameters
-type ParamsWrapper struct {
-	params []string
+// WhenNeeded runs plans only when it's needed
+func (o Options) WhenNeeded() Options {
+	o.handler = false
+	return o
 }
 
 // With makes the given list of parameters available to the derived plans
-func With(params ...string) ParamsWrapper {
-	return ParamsWrapper{params}
+func (o Options) With(params ...string) Options {
+	newParams := make([]string, len(o.params), len(o.params)+len(params))
+	if len(newParams) > 0 {
+		copy(newParams, o.params)
+	}
+
+	o.params = append(o.params, params...)
+	return o
 }
 
-// Run applies the action returned by the provided function
-func (wp ParamsWrapper) Run(fn func(r Request) wit.Action) Procedure {
-	return Procedure{
-		plans: []plan{
-			{
-				fn:     fn,
-				async:  true,
-				params: wp.params,
-			},
-		},
-	}
-}
-
-// Handle always applies the action returned by the provided function
-func (wp ParamsWrapper) Handle(fn func(r Request) wit.Action) Procedure {
-	return Procedure{
-		plans: []plan{
-			{
-				fn:      fn,
-				async:   true,
-				handler: true,
-				params:  wp.params,
-			},
-		},
-	}
+// SetParams sets the available parameters to the provided list
+func (o Options) SetParams(params ...string) Options {
+	o.params = params
+	return o
 }
 
 // Deps handles loaded dependencies
@@ -199,7 +159,7 @@ func Deps(handler func(string) wit.Action) Plan {
 }
 
 // Nil represents an effectless plan
-var Nil = Procedure{}
+var Nil Plan = Procedure{}
 
 // IsNil checks whether the given plan is empty or not
 func IsNil(plan Plan) bool {
