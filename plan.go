@@ -26,15 +26,18 @@ type Plan interface {
 
 // Options holds the list of options selected for a given plan
 type Options struct {
-	async     bool
-	exclusive bool
-	handler   bool
-	params    []string
+	async      bool
+	exclusive  bool
+	handler    bool
+	navigation bool
+	ajax       bool
+	params     []string
 }
 
 // DefaultOptions are the options which apply to plans by default
 var DefaultOptions = Options{
-	async: true,
+	async:      true,
+	navigation: true,
 }
 
 // List groups several plans together
@@ -90,7 +93,10 @@ func (o Options) Run(fn func(r Request) wit.Action) Procedure {
 
 // Handle always applies the action returned by the provided function
 func (o Options) Handle(fn func(r Request) wit.Action) Procedure {
-	return o.Always().Run(fn)
+	o.navigation = true
+	o.ajax = true
+	o.handler = true
+	return o.Run(fn)
 }
 
 // Sync runs plans sequentially
@@ -144,6 +150,30 @@ func (o Options) With(params ...string) Options {
 // SetParams sets the available parameters to the provided list
 func (o Options) SetParams(params ...string) Options {
 	o.params = params
+	return o
+}
+
+// Navigation runs plans on navigation
+func (o Options) Navigation() Options {
+	o.navigation = true
+	return o
+}
+
+// NavigationOnly runs plans only on navigation
+func (o Options) NavigationOnly() Options {
+	o.ajax = false
+	return o
+}
+
+// AJAX runs plans on AJAX
+func (o Options) AJAX() Options {
+	o.ajax = true
+	return o
+}
+
+// AJAXOnly runs plans only on AJAX
+func (o Options) AJAXOnly() Options {
+	o.navigation = false
 	return o
 }
 

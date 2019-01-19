@@ -204,6 +204,16 @@ mainLoop:
 				continue
 			}
 
+			if r.IsNavigation {
+				if !info.navigation {
+					continue
+				}
+			} else {
+				if !info.ajax {
+					continue
+				}
+			}
+
 			if info.exclusive {
 				for running > 0 {
 					cond.Wait()

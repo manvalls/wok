@@ -62,3 +62,23 @@ func With(params ...string) Options {
 func SetParams(params ...string) Options {
 	return DefaultOptions.SetParams(params...)
 }
+
+// Navigation runs plans on navigation
+func Navigation() Options {
+	return DefaultOptions.Navigation()
+}
+
+// NavigationOnly runs plans only on navigation
+func NavigationOnly() Options {
+	return DefaultOptions.NavigationOnly()
+}
+
+// AJAX runs plans on AJAX
+func AJAX() Options {
+	return DefaultOptions.AJAX()
+}
+
+// AJAXOnly runs plans only on AJAX
+func AJAXOnly() Options {
+	return DefaultOptions.AJAXOnly()
+}

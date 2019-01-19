@@ -52,6 +52,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		RequestHeader:  r.Header,
 		ResponseHeader: w.Header(),
+		IsNavigation:   r.Header.Get("X-Requested-With") != "XMLHttpRequest" && r.Header.Get("X-Navigation") == "true",
 
 		StatusCodeGetterSetter: &StatusCodeGetterSetter{},
 
@@ -115,7 +116,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			routes[hv.header] = hv.value
 		}
 
-		if IsNavigation(r) {
+		if request.IsNavigation {
 			script := "<script data-wok-remove>(function(){var w=window.SPH=window.SPH||{};w.routes={"
 
 			i := 0
