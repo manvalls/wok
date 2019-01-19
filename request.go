@@ -60,6 +60,16 @@ type Request struct {
 	*deduper
 }
 
+// IsNavigation checks whether the provided request implies navigation
+func IsNavigation(r *http.Request) bool {
+	return r.Header.Get("X-Requested-With") != "XMLHttpRequest" && r.Header.Get("X-Navigation") == "true"
+}
+
+// IsNavigation checks whether this request implies navigation
+func (r Request) IsNavigation() bool {
+	return IsNavigation(r.Request)
+}
+
 // HandleResponse tells the controller how to handle the response
 func (r Request) HandleResponse(f func(http.ResponseWriter)) {
 	r.redirectCond.L.Lock()

@@ -115,21 +115,25 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			routes[hv.header] = hv.value
 		}
 
-		script := "<script data-wok-remove>(function(){var w=window.SPH=window.SPH||{};w.routes={"
+		if IsNavigation(r) {
+			script := "<script data-wok-remove>(function(){var w=window.SPH=window.SPH||{};w.routes={"
 
-		i := 0
-		for key, value := range routes {
-			if i != 0 {
-				script += ","
+			i := 0
+			for key, value := range routes {
+				if i != 0 {
+					script += ","
+				}
+
+				script += strconv.Quote(key) + ":" + strconv.Quote(value)
+				i++
 			}
 
-			script += strconv.Quote(key) + ":" + strconv.Quote(value)
-			i++
+			script += "}})()</script>"
+
+			delta = wit.List(delta, wit.Head.One(wit.Prepend(wit.FromString(script))))
 		}
 
-		script += "}})()</script>"
-
-		delta = wit.List(toRemove.All(wit.Remove), delta, wit.Head.One(wit.Prepend(wit.FromString(script))))
+		delta = wit.List(toRemove.All(wit.Remove), delta)
 		contentType := httputil.NegotiateContentType(r, []string{"text/html", "application/json"}, "text/html")
 
 		var renderer wit.Renderer
