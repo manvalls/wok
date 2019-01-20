@@ -1,6 +1,8 @@
 package wok
 
-import "github.com/manvalls/wit"
+import (
+	"github.com/manvalls/wit"
+)
 
 // Wrap applies default options to the provided list of plans
 func Wrap(plans ...Plan) Plan {
@@ -81,4 +83,69 @@ func AJAX() Options {
 // AJAXOnly runs plans only on AJAX
 func AJAXOnly() Options {
 	return DefaultOptions.AJAXOnly()
+}
+
+// ResetMethods clears methods blacklist and whitelist
+func ResetMethods() Options {
+	return DefaultOptions.ResetMethods()
+}
+
+// Method runs this plan when the request matches one of the provided methods
+func Method(methods ...string) Options {
+	return DefaultOptions.Method(methods...)
+}
+
+// NoMethod runs this plan when the request doesn't match one of the provided methods
+func NoMethod(methods ...string) Options {
+	return DefaultOptions.NoMethod(methods...)
+}
+
+// Get is an alias for Method("GET", "HEAD")
+func Get() Options {
+	return DefaultOptions.Get()
+}
+
+// NoGet is an alias for NoMethod("GET", "HEAD")
+func NoGet() Options {
+	return DefaultOptions.NoGet()
+}
+
+// Post is an alias for Method("POST")
+func Post() Options {
+	return DefaultOptions.Post()
+}
+
+// NoPost is an alias for NoMethod("POST")
+func NoPost() Options {
+	return DefaultOptions.NoPost()
+}
+
+// Put is an alias for Method("PUT")
+func Put() Options {
+	return DefaultOptions.Put()
+}
+
+// NoPut is an alias for NoMethod("PUT")
+func NoPut() Options {
+	return DefaultOptions.NoPut()
+}
+
+// Patch is an alias for Method("PATCH")
+func Patch() Options {
+	return DefaultOptions.Patch()
+}
+
+// NoPatch is an alias for NoMethod("PATCH")
+func NoPatch() Options {
+	return DefaultOptions.NoPatch()
+}
+
+// Delete is an alias for Method("DELETE")
+func Delete() Options {
+	return DefaultOptions.Delete()
+}
+
+// NoDelete is an alias for NoMethod("DELETE")
+func NoDelete() Options {
+	return DefaultOptions.NoDelete()
 }

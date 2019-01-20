@@ -214,6 +214,14 @@ mainLoop:
 				}
 			}
 
+			if len(info.exclMethods) > 0 && info.exclMethods[r.Method] {
+				continue
+			}
+
+			if len(info.methods) > 0 && !info.methods[r.Method] {
+				continue
+			}
+
 			if info.exclusive {
 				for running > 0 {
 					cond.Wait()

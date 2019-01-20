@@ -52,7 +52,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		RequestHeader:  r.Header,
 		ResponseHeader: w.Header(),
-		IsNavigation:   r.Header.Get("X-Requested-With") != "XMLHttpRequest" && r.Header.Get("X-Navigation") == "true",
+		IsNavigation:   r.Header.Get("X-Requested-With") != "XMLHttpRequest" || r.Header.Get("X-Navigation") == "true",
 
 		StatusCodeGetterSetter: &StatusCodeGetterSetter{},
 
