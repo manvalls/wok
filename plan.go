@@ -291,6 +291,10 @@ func Deps(handler func(string) wit.Action) Plan {
 		plans: []plan{
 			{
 				deps: handler,
+				Options: Options{
+					navigation: true,
+					ajax:       true,
+				},
 			},
 		},
 	}
