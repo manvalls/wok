@@ -2,6 +2,7 @@ package wok
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/manvalls/way"
+	"github.com/manvalls/wit"
 )
 
 type headerAndValue struct {
@@ -25,19 +27,38 @@ type deduper struct {
 	deduperMutex           *sync.Mutex
 }
 
-// Request wraps an HTTP request
-type Request struct {
+// ReadOnlyRequest wraps a read-only HTTP request
+type ReadOnlyRequest struct {
 	*http.Request
-	w http.ResponseWriter
 	context.Context
 	way.Router
 	url.Values
-	OldParams    url.Values
-	IsNavigation bool
+	OldParams     url.Values
+	IsNavigation  bool
+	IsSocket      bool
+	Call          CallData
+	Input         <-chan url.Values
+	Output        chan<- wit.Action
+	RequestHeader http.Header
+}
 
+var errClosed = errors.New("Socket closed")
+
+// Send sends an action through a socket, or returns an error if the socket is closed
+func (r ReadOnlyRequest) Send(action wit.Action) error {
+	select {
+	case r.Output <- action:
+		return nil
+	case <-r.Done():
+		return errClosed
+	}
+}
+
+// Request wraps an HTTP request
+type Request struct {
+	ReadOnlyRequest
+	w http.ResponseWriter
 	*StatusCodeGetterSetter
-
-	RequestHeader  http.Header
 	ResponseHeader http.Header
 
 	route []string
@@ -141,7 +162,7 @@ func (r Request) Vary(headers ...string) {
 type Params = map[string][]string
 
 // FromHeader builds a route path from an HTTP header
-func (r Request) FromHeader(header string) (Params, []string) {
+func (r ReadOnlyRequest) FromHeader(header string) (Params, []string) {
 	header = http.CanonicalHeaderKey(header)
 
 	h, ok := r.Request.Header[header]

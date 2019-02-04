@@ -8,6 +8,7 @@ import (
 
 type plan struct {
 	fn     func(r Request) wit.Action
+	doFn   func(r ReadOnlyRequest)
 	action wit.Action
 	deps   func(string) wit.Action
 	Options
@@ -28,23 +29,29 @@ type Plan interface {
 	Procedure() Procedure
 }
 
+const (
+	unsetField = iota
+	trueField
+	falseField
+)
+
 // Options holds the list of options selected for a given plan
 type Options struct {
-	async       bool
+	sync        bool
 	exclusive   bool
 	handler     bool
 	navigation  bool
 	ajax        bool
+	socket      int
 	params      []string
 	methods     map[string]bool
 	exclMethods map[string]bool
+	calls       map[string]bool
+	exclCalls   map[string]bool
 }
 
 // DefaultOptions are the options which apply to plans by default
-var DefaultOptions = Options{
-	async:      true,
-	navigation: true,
-}
+var DefaultOptions = Options{}
 
 // List groups several plans together
 func List(plans ...Plan) Plan {
@@ -59,22 +66,12 @@ func List(plans ...Plan) Plan {
 	return Procedure{list}
 }
 
-// Wrap applies these options to the provided list of plans
-func (o Options) Wrap(plans ...Plan) Plan {
-	list := []plan{}
-
-	for _, plan := range plans {
-		for _, c := range plan.Procedure().plans {
-			c.Options = o
-			list = append(list, c)
-		}
-	}
-
-	return Procedure{list}
-}
-
 // Action applies given actions directly
 func (o Options) Action(actions ...wit.Action) Plan {
+	if o.navigation == false && o.ajax == false && o.socket != trueField {
+		o.navigation = true
+	}
+
 	return Procedure{
 		plans: []plan{
 			{
@@ -87,6 +84,10 @@ func (o Options) Action(actions ...wit.Action) Plan {
 
 // Run applies the action returned by the provided function
 func (o Options) Run(fn func(r Request) wit.Action) Procedure {
+	if o.navigation == false && o.ajax == false && o.socket != trueField {
+		o.navigation = true
+	}
+
 	return Procedure{
 		plans: []plan{
 			{
@@ -99,21 +100,52 @@ func (o Options) Run(fn func(r Request) wit.Action) Procedure {
 
 // Handle always applies the action returned by the provided function
 func (o Options) Handle(fn func(r Request) wit.Action) Procedure {
-	o.navigation = true
-	o.ajax = true
+	if o.navigation == false && o.ajax == false && o.socket != trueField {
+		o.navigation = true
+		o.ajax = true
+	}
+
 	o.handler = true
 	return o.Run(fn)
 }
 
-// Sync runs plans sequentially
-func (o Options) Sync() Options {
-	o.async = true
-	return o
+// Do always does something with the request without returning a delta
+func (o Options) Do(fn func(r ReadOnlyRequest)) Procedure {
+	if o.navigation == false && o.ajax == false && o.socket != trueField {
+		o.navigation = true
+		o.ajax = true
+	}
+
+	o.handler = true
+	return Procedure{
+		plans: []plan{
+			{
+				doFn:    fn,
+				Options: o,
+			},
+		},
+	}
 }
 
-// Async runs plans in parallel
-func (o Options) Async() Options {
-	o.async = true
+// Tap does something with the request without returning a delta
+func (o Options) Tap(fn func(r ReadOnlyRequest)) Procedure {
+	if o.navigation == false && o.ajax == false && o.socket != trueField {
+		o.navigation = true
+	}
+
+	return Procedure{
+		plans: []plan{
+			{
+				doFn:    fn,
+				Options: o,
+			},
+		},
+	}
+}
+
+// Sync runs plans sequentially
+func (o Options) Sync() Options {
+	o.sync = true
 	return o
 }
 
@@ -124,21 +156,9 @@ func (o Options) Excl() Options {
 	return o
 }
 
-// Incl runs plans inclusively
-func (o Options) Incl() Options {
-	o.exclusive = false
-	return o
-}
-
 // Always runs plans even if it wouldn't be necessary
 func (o Options) Always() Options {
 	o.handler = true
-	return o
-}
-
-// WhenNeeded runs plans only when it's needed
-func (o Options) WhenNeeded() Options {
-	o.handler = false
 	return o
 }
 
@@ -153,21 +173,9 @@ func (o Options) With(params ...string) Options {
 	return o
 }
 
-// SetParams sets the available parameters to the provided list
-func (o Options) SetParams(params ...string) Options {
-	o.params = params
-	return o
-}
-
 // Navigation runs plans on navigation
 func (o Options) Navigation() Options {
 	o.navigation = true
-	return o
-}
-
-// NavigationOnly runs plans only on navigation
-func (o Options) NavigationOnly() Options {
-	o.ajax = false
 	return o
 }
 
@@ -177,9 +185,15 @@ func (o Options) AJAX() Options {
 	return o
 }
 
-// AJAXOnly runs plans only on AJAX
-func (o Options) AJAXOnly() Options {
-	o.navigation = false
+// Socket runs plans on socket request
+func (o Options) Socket() Options {
+	o.socket = trueField
+	return o
+}
+
+// NoSocket doesn't run plans on socket request
+func (o Options) NoSocket() Options {
+	o.socket = falseField
 	return o
 }
 
@@ -206,13 +220,6 @@ func deleteMethods(methodsMap map[string]bool, methodsList []string) {
 	for _, method := range methodsList {
 		delete(methodsMap, method)
 	}
-}
-
-// ResetMethods clears methods blacklist and whitelist
-func (o Options) ResetMethods() Options {
-	o.methods = nil
-	o.exclMethods = nil
-	return o
 }
 
 // Method runs this plan when the request matches one of the provided methods
@@ -283,6 +290,26 @@ func (o Options) Delete() Options {
 // NoDelete is an alias for NoMethod("DELETE")
 func (o Options) NoDelete() Options {
 	return o.NoMethod(http.MethodDelete)
+}
+
+// Call runs this plan when the request matches one of the provided calls
+func (o Options) Call(calls ...string) Options {
+	o.calls = copyMethodMap(o.calls)
+	o.exclCalls = copyMethodMap(o.exclCalls)
+
+	addMethods(o.calls, calls)
+	deleteMethods(o.exclCalls, calls)
+	return o
+}
+
+// NoCall runs this plan when the request doesn't match one of the provided calls
+func (o Options) NoCall(calls ...string) Options {
+	o.calls = copyMethodMap(o.calls)
+	o.exclCalls = copyMethodMap(o.exclCalls)
+
+	deleteMethods(o.calls, calls)
+	addMethods(o.exclCalls, calls)
+	return o
 }
 
 // Deps handles loaded dependencies

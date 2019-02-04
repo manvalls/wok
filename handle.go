@@ -111,11 +111,12 @@ func (controller Default) Resolve(id string) Controller {
 }
 
 // Handle executes the appropiate plans and gathers returned actions
-func (r Request) Handle(rootController Controller, header string, params Params, route ...string) wit.Action {
+func (r Request) Handle(rootController Controller, header string, params Params, route ...string) (wit.Action, func()) {
 	cond := sync.NewCond(&sync.Mutex{})
 	cond.L.Lock()
 	defer cond.L.Unlock()
 
+	wg := sync.WaitGroup{}
 	plansInfo := []*planInfo{}
 	oldParams, oldRoute := r.FromHeader(header)
 	redirectionOffset := 0
@@ -204,13 +205,19 @@ mainLoop:
 				continue
 			}
 
-			if r.IsNavigation {
-				if !info.navigation {
-					continue
-				}
-			} else {
-				if !info.ajax {
-					continue
+			if r.IsSocket && info.socket == falseField {
+				continue
+			}
+
+			if !(r.IsSocket && info.socket == trueField) {
+				if r.IsNavigation {
+					if !info.navigation {
+						continue
+					}
+				} else {
+					if !info.ajax {
+						continue
+					}
 				}
 			}
 
@@ -219,6 +226,14 @@ mainLoop:
 			}
 
 			if len(info.methods) > 0 && !info.methods[r.Method] {
+				continue
+			}
+
+			if len(info.exclCalls) > 0 && info.exclCalls[r.Call.Name] {
+				continue
+			}
+
+			if len(info.calls) > 0 && !info.calls[r.Call.Name] {
 				continue
 			}
 
@@ -248,7 +263,7 @@ mainLoop:
 			info.action = info.plan.action
 			plansInfo = append(plansInfo, info)
 
-			if info.fn != nil {
+			if info.fn != nil || info.doFn != nil {
 				subRequest := r
 				subRequest.Context, info.CancelFunc = context.WithCancel(r.Context)
 
@@ -262,32 +277,44 @@ mainLoop:
 				subRequest.Values = cloneParams(info.params)
 				subRequest.OldParams = cloneParams(info.oldParams)
 
-				if info.async {
-					running++
-
-					go func(info *planInfo) {
-						info.action = info.plan.fn(subRequest)
-
-						cond.L.Lock()
-						running--
-						cond.Broadcast()
+				if info.fn != nil {
+					if info.sync {
 						cond.L.Unlock()
-					}(info)
-				} else {
-					cond.L.Unlock()
-					info.action = info.plan.fn(subRequest)
-					cond.L.Lock()
+						info.action = info.plan.fn(subRequest)
+						cond.L.Lock()
 
-					r.customMutex.Lock()
+						r.customMutex.Lock()
 
-					if *r.custom {
+						if *r.custom {
+							r.customMutex.Unlock()
+							break mainLoop
+						}
+
 						r.customMutex.Unlock()
-						break mainLoop
+
+						checkRedirections()
+					} else {
+						running++
+
+						go func(info *planInfo) {
+							info.action = info.plan.fn(subRequest)
+
+							cond.L.Lock()
+							running--
+							cond.Broadcast()
+							cond.L.Unlock()
+						}(info)
 					}
-
-					r.customMutex.Unlock()
-
-					checkRedirections()
+				} else {
+					if info.sync {
+						info.plan.doFn(subRequest.ReadOnlyRequest)
+					} else {
+						wg.Add(1)
+						go func() {
+							info.plan.doFn(subRequest.ReadOnlyRequest)
+							wg.Done()
+						}()
+					}
 				}
 			}
 		}
@@ -328,7 +355,7 @@ mainLoop:
 					}
 
 					actionList[i] = wit.List(depsActions...)
-				} else {
+				} else if info.doFn == nil {
 					actionList[i] = info.action
 				}
 			}
@@ -347,9 +374,13 @@ mainLoop:
 			}()
 
 			r.ContextVary(header)
-			return wit.List(actionList...)
+			return wit.List(actionList...), func() {
+				wg.Wait()
+			}
 		}
 	}
 
-	return wit.Nil
+	return wit.Nil, func() {
+		wg.Wait()
+	}
 }
