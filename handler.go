@@ -199,7 +199,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 }
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("Upgrade") == "websocket" {
+	if strings.ToLower(r.Header.Get("Upgrade")) == "websocket" {
 		conn, err := h.Upgrade(w, r, nil)
 		if err == nil {
 			h.handleWS(r.Context(), conn)
