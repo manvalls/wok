@@ -110,15 +110,26 @@ func (controller Default) Resolve(id string) Controller {
 	return Default{}
 }
 
+// HandleOptions wraps request.Handle options
+type HandleOptions struct {
+	Root       Controller
+	HeaderName string
+	Route      []string
+	Params
+}
+
 // Handle executes the appropiate plans and gathers returned actions
-func (r Request) Handle(rootController Controller, header string, params Params, route ...string) (wit.Action, func()) {
+func (r Request) Handle(o HandleOptions) (wit.Action, func()) {
 	cond := sync.NewCond(&sync.Mutex{})
 	cond.L.Lock()
 	defer cond.L.Unlock()
 
+	params := o.Params
+	route := o.Route
+
 	wg := sync.WaitGroup{}
 	plansInfo := []*planInfo{}
-	oldParams, oldRoute := r.FromHeader(header)
+	oldParams, oldRoute := r.FromHeader(o.HeaderName)
 	redirectionOffset := 0
 	running := 0
 
@@ -158,7 +169,7 @@ mainLoop:
 		}
 
 		if redirectionOffset < len(route) {
-			controller := rootController
+			controller := o.Root
 			for i := 1; i < redirectionOffset; i++ {
 				controller = controller.Resolve(route[i])
 			}
@@ -363,7 +374,7 @@ mainLoop:
 			key := &struct{}{}
 
 			r.routesMutex.Lock()
-			r.routes[key] = headerAndValue{header, ToHeader(params, route...)}
+			r.routes[key] = headerAndValue{o.HeaderName, ToHeader(params, route...)}
 			r.routesMutex.Unlock()
 
 			go func() {
@@ -373,7 +384,7 @@ mainLoop:
 				r.routesMutex.Unlock()
 			}()
 
-			r.ContextVary(header)
+			r.ContextVary(o.HeaderName)
 			return wit.List(actionList...), func() {
 				wg.Wait()
 			}

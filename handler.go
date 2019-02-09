@@ -111,7 +111,13 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 
 	request.loadedDependencies = depsMap
 
-	delta, doWait := request.Handle(h.Root(), routeHeader, params, route...)
+	delta, doWait := request.Handle(HandleOptions{
+		Root:       h.Root(),
+		HeaderName: routeHeader,
+		Params:     params,
+		Route:      route,
+	})
+
 	usedDeps := getDeps(&request)
 
 	if len(usedDeps) != 0 {
