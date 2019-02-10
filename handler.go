@@ -13,8 +13,6 @@ import (
 	"github.com/manvalls/wit"
 )
 
-var toRemove = wit.S("[data-wok-remove]")
-
 // Handler implements an HTTP fn which provides wok requests
 type Handler struct {
 	Root        func() Controller
@@ -122,12 +120,17 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 
 	if len(usedDeps) != 0 {
 		request.Vary(depsHeader)
-		script := "<script data-wok-remove>!function(){var n,o='" +
-			depsHeader +
-			"',i=window.SPH=window.SPH||{},p=i.deps=i.deps||{},s={},t=[],w=(p[o]?p[o].split(','):[]).concat('" +
-			ToHeader(nil, usedDeps...) +
-			"'.split(','));for(n=0;n<w.length;n++)s.hasOwnProperty(w[n])||(s[w[n]]=1,t.push(w[n]));p[o]=t.join(',')}();</script>"
 
+		list := ""
+		for i, dep := range usedDeps {
+			if i != 0 {
+				list += ","
+			}
+
+			list += strconv.Quote(dep)
+		}
+
+		script := "<script data-w-rm>!function(){var w=window,o='" + depsHeader + "',i=w.SPH=w.SPH||{},p=i.deps=i.deps||{};(p[o]=p[o]||[]).push(" + list + ");}()</script>"
 		delta = wit.List(delta, wit.Head.One(wit.Prepend(wit.FromString(script))))
 	}
 
@@ -154,7 +157,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 		}
 
 		if request.IsNavigation {
-			script := "<script data-wok-remove>(function(){var w=window.SPH=window.SPH||{};w.routes={"
+			script := "<script data-w-rm>(function(){(window.SPH=window.SPH||{}).routes={"
 
 			i := 0
 			for key, value := range routes {
@@ -171,7 +174,6 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 			delta = wit.List(delta, wit.Head.One(wit.Prepend(wit.FromString(script))))
 		}
 
-		delta = wit.List(toRemove.All(wit.Remove), delta)
 		contentType := httputil.NegotiateContentType(r, []string{"text/html", "application/json"}, "text/html")
 
 		var renderer wit.Renderer
