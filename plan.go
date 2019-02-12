@@ -7,10 +7,10 @@ import (
 )
 
 type plan struct {
-	fn     func(r Request) wit.Action
+	fn     func(r Request) wit.Command
 	doFn   func(r ReadOnlyRequest)
-	action wit.Action
-	deps   func(string) wit.Action
+	command wit.Command
+	deps   func(string) wit.Command
 	Options
 }
 
@@ -66,8 +66,8 @@ func List(plans ...Plan) Plan {
 	return Procedure{list}
 }
 
-// Action applies given actions directly
-func (o Options) Action(actions ...wit.Action) Plan {
+// Command applies given commands directly
+func (o Options) Command(commands ...wit.Command) Plan {
 	if o.navigation == false && o.ajax == false && o.socket != trueField {
 		o.navigation = true
 	}
@@ -75,15 +75,15 @@ func (o Options) Action(actions ...wit.Action) Plan {
 	return Procedure{
 		plans: []plan{
 			{
-				action:  wit.List(actions...),
+				command:  wit.List(commands...),
 				Options: o,
 			},
 		},
 	}
 }
 
-// Run applies the action returned by the provided function
-func (o Options) Run(fn func(r Request) wit.Action) Procedure {
+// Run applies the command returned by the provided function
+func (o Options) Run(fn func(r Request) wit.Command) Procedure {
 	if o.navigation == false && o.ajax == false && o.socket != trueField {
 		o.navigation = true
 	}
@@ -98,8 +98,8 @@ func (o Options) Run(fn func(r Request) wit.Action) Procedure {
 	}
 }
 
-// Handle always applies the action returned by the provided function
-func (o Options) Handle(fn func(r Request) wit.Action) Procedure {
+// Handle always applies the command returned by the provided function
+func (o Options) Handle(fn func(r Request) wit.Command) Procedure {
 	if o.navigation == false && o.ajax == false && o.socket != trueField {
 		o.navigation = true
 		o.ajax = true
@@ -313,7 +313,7 @@ func (o Options) NoCall(calls ...string) Options {
 }
 
 // Deps handles loaded dependencies
-func Deps(handler func(string) wit.Action) Plan {
+func Deps(handler func(string) wit.Command) Plan {
 	return Procedure{
 		plans: []plan{
 			{

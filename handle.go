@@ -15,7 +15,7 @@ type planInfo struct {
 	offset    int
 	params    Params
 	oldParams Params
-	action    wit.Action
+	command    wit.Command
 }
 
 func getOffset(previousRoute []string, newRoute []string) (offset int) {
@@ -118,8 +118,8 @@ type HandleOptions struct {
 	Params
 }
 
-// Handle executes the appropiate plans and gathers returned actions
-func (r Request) Handle(o HandleOptions) (wit.Action, func()) {
+// Handle executes the appropiate plans and gathers returned commands
+func (r Request) Handle(o HandleOptions) (wit.Command, func()) {
 	cond := sync.NewCond(&sync.Mutex{})
 	cond.L.Lock()
 	defer cond.L.Unlock()
@@ -271,7 +271,7 @@ mainLoop:
 
 			info.params = pickParams(params, info.plan.params)
 			info.oldParams = pickParams(oldParams, info.plan.params)
-			info.action = info.plan.action
+			info.command = info.plan.command
 			plansInfo = append(plansInfo, info)
 
 			if info.fn != nil || info.doFn != nil {
@@ -291,7 +291,7 @@ mainLoop:
 				if info.fn != nil {
 					if info.sync {
 						cond.L.Unlock()
-						info.action = info.plan.fn(subRequest)
+						info.command = info.plan.fn(subRequest)
 						cond.L.Lock()
 
 						r.customMutex.Lock()
@@ -308,7 +308,7 @@ mainLoop:
 						running++
 
 						go func(info *planInfo) {
-							info.action = info.plan.fn(subRequest)
+							info.command = info.plan.fn(subRequest)
 
 							cond.L.Lock()
 							running--
@@ -355,19 +355,19 @@ mainLoop:
 		r.customMutex.Unlock()
 
 		if redirectedRoute == nil && redirectedParams == nil {
-			actionList := make([]wit.Action, len(plansInfo))
+			commandList := make([]wit.Command, len(plansInfo))
 			depsList := getDeps(&r)
 
 			for i, info := range plansInfo {
 				if info.deps != nil {
-					depsActions := []wit.Action{}
+					depsCommands := []wit.Command{}
 					for _, dep := range depsList {
-						depsActions = append(depsActions, info.deps(dep))
+						depsCommands = append(depsCommands, info.deps(dep))
 					}
 
-					actionList[i] = wit.List(depsActions...)
+					commandList[i] = wit.List(depsCommands...)
 				} else if info.doFn == nil {
-					actionList[i] = info.action
+					commandList[i] = info.command
 				}
 			}
 
@@ -385,7 +385,7 @@ mainLoop:
 			}()
 
 			r.ContextVary(o.HeaderName)
-			return wit.List(actionList...), func() {
+			return wit.List(commandList...), func() {
 				wg.Wait()
 			}
 		}

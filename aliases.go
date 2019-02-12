@@ -4,13 +4,13 @@ import (
 	"github.com/manvalls/wit"
 )
 
-// Action applies given actions directly
-func Action(actions ...wit.Action) Plan {
-	return DefaultOptions.Action(actions...)
+// Command applies given commands directly
+func Command(commands ...wit.Command) Plan {
+	return DefaultOptions.Command(commands...)
 }
 
-// Run applies the action returned by the provided function
-func Run(fn func(r Request) wit.Action) Plan {
+// Run applies the command returned by the provided function
+func Run(fn func(r Request) wit.Command) Plan {
 	return DefaultOptions.Run(fn)
 }
 
@@ -24,8 +24,8 @@ func Tap(fn func(r ReadOnlyRequest)) Procedure {
 	return DefaultOptions.Tap(fn)
 }
 
-// Handle always applies the action returned by the provided function
-func Handle(fn func(r Request) wit.Action) Plan {
+// Handle always applies the command returned by the provided function
+func Handle(fn func(r Request) wit.Command) Plan {
 	return DefaultOptions.Handle(fn)
 }
 

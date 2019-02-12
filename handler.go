@@ -30,7 +30,7 @@ type CallData struct {
 	url.Values
 }
 
-func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.Values, output chan<- wit.Action, flush func()) {
+func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.Values, output chan<- wit.Command, flush func()) {
 	params, route, err := h.GetRoute(r.URL)
 	if err != nil {
 		w.WriteHeader(404)

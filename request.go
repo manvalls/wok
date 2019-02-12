@@ -38,16 +38,16 @@ type ReadOnlyRequest struct {
 	IsSocket      bool
 	Call          CallData
 	Input         <-chan url.Values
-	Output        chan<- wit.Action
+	Output        chan<- wit.Command
 	RequestHeader http.Header
 }
 
 var errClosed = errors.New("Socket closed")
 
-// Send sends an action through a socket, or returns an error if the socket is closed
-func (r ReadOnlyRequest) Send(action wit.Action) error {
+// Send sends an command through a socket, or returns an error if the socket is closed
+func (r ReadOnlyRequest) Send(command wit.Command) error {
 	select {
-	case r.Output <- action:
+	case r.Output <- command:
 		return nil
 	case <-r.Done():
 		return errClosed

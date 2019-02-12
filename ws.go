@@ -83,7 +83,7 @@ func (h Handler) handleWS(ctx context.Context, conn *websocket.Conn) {
 			}
 
 			ctx, cancel := context.WithCancel(rootCtx)
-			chOut := make(chan wit.Action)
+			chOut := make(chan wit.Command)
 			chIn := make(chan url.Values, h.InputBuffer)
 
 			req = req.WithContext(ctx)
@@ -99,7 +99,7 @@ func (h Handler) handleWS(ctx context.Context, conn *websocket.Conn) {
 				for {
 
 					select {
-					case action, ok := <-chOut:
+					case command, ok := <-chOut:
 						if !ok {
 							return
 						}
@@ -113,7 +113,7 @@ func (h Handler) handleWS(ctx context.Context, conn *websocket.Conn) {
 						}
 
 						nw.Write([]byte("APPLY " + id + "\r\n"))
-						rerr := wit.NewJSONRenderer(action).Render(nw)
+						rerr := wit.NewJSONRenderer(command).Render(nw)
 						nw.Close()
 
 						if rerr != nil {
