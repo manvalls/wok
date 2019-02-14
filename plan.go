@@ -138,6 +138,16 @@ func (o Options) Run(fn func(r Request) wit.Command) Options {
 	return r
 }
 
+// Fork adds the returned plan to the plan chain
+func (o Options) Fork(fn func(o Options) Plan) Options {
+	o.linkedPlan = &linkedPlan{
+		parent: o.linkedPlan,
+		plan:   fn(o),
+	}
+
+	return o
+}
+
 // Handle always applies the command returned by the provided function
 func (o Options) Handle(fn func(r Request) wit.Command) Options {
 	if o.navigation == false && o.ajax == false && o.socket != trueField {

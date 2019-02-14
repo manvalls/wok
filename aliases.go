@@ -4,6 +4,11 @@ import (
 	"github.com/manvalls/wit"
 )
 
+// Fork adds the returned plan to the plan chain
+func Fork(fn func(o Options) Plan) Options {
+	return DefaultOptions.Fork(fn)
+}
+
 // Command applies given commands directly
 func Command(commands ...wit.Command) Options {
 	return DefaultOptions.Command(commands...)
