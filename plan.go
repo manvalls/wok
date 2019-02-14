@@ -6,11 +6,16 @@ import (
 	"github.com/manvalls/wit"
 )
 
+type linkedPlan struct {
+	plan   Plan
+	parent *linkedPlan
+}
+
 type plan struct {
-	fn     func(r Request) wit.Command
-	doFn   func(r ReadOnlyRequest)
+	fn      func(r Request) wit.Command
+	doFn    func(r ReadOnlyRequest)
 	command wit.Command
-	deps   func(string) wit.Command
+	deps    func(string) wit.Command
 	Options
 }
 
@@ -48,6 +53,7 @@ type Options struct {
 	exclMethods map[string]bool
 	calls       map[string]bool
 	exclCalls   map[string]bool
+	*linkedPlan
 }
 
 // DefaultOptions are the options which apply to plans by default
@@ -58,48 +64,82 @@ func List(plans ...Plan) Plan {
 	list := []plan{}
 
 	for _, plan := range plans {
-		for _, c := range plan.Procedure().plans {
-			list = append(list, c)
+		if plan != nil {
+			for _, c := range plan.Procedure().plans {
+				list = append(list, c)
+			}
 		}
 	}
 
 	return Procedure{list}
 }
 
+// Procedure returns the computed procedure
+func (o Options) Procedure() Procedure {
+	reverseOrderPlans := []Plan{}
+
+	linkedPlan := o.linkedPlan
+	for linkedPlan != nil {
+		reverseOrderPlans = append(reverseOrderPlans, linkedPlan.plan)
+		linkedPlan = linkedPlan.parent
+	}
+
+	plans := make([]Plan, len(reverseOrderPlans))
+	for i, plan := range reverseOrderPlans {
+		plans[len(plans)-1-i] = plan
+	}
+
+	return List(plans...).Procedure()
+}
+
 // Command applies given commands directly
-func (o Options) Command(commands ...wit.Command) Plan {
+func (o Options) Command(commands ...wit.Command) Options {
+	r := o
+
 	if o.navigation == false && o.ajax == false && o.socket != trueField {
 		o.navigation = true
 	}
 
-	return Procedure{
-		plans: []plan{
-			{
-				command:  wit.List(commands...),
-				Options: o,
+	r.linkedPlan = &linkedPlan{
+		parent: r.linkedPlan,
+		plan: Procedure{
+			plans: []plan{
+				{
+					command: wit.List(commands...),
+					Options: o,
+				},
 			},
 		},
 	}
+
+	return r
 }
 
 // Run applies the command returned by the provided function
-func (o Options) Run(fn func(r Request) wit.Command) Procedure {
+func (o Options) Run(fn func(r Request) wit.Command) Options {
+	r := o
+
 	if o.navigation == false && o.ajax == false && o.socket != trueField {
 		o.navigation = true
 	}
 
-	return Procedure{
-		plans: []plan{
-			{
-				fn:      fn,
-				Options: o,
+	r.linkedPlan = &linkedPlan{
+		parent: r.linkedPlan,
+		plan: Procedure{
+			plans: []plan{
+				{
+					fn:      fn,
+					Options: o,
+				},
 			},
 		},
 	}
+
+	return r
 }
 
 // Handle always applies the command returned by the provided function
-func (o Options) Handle(fn func(r Request) wit.Command) Procedure {
+func (o Options) Handle(fn func(r Request) wit.Command) Options {
 	if o.navigation == false && o.ajax == false && o.socket != trueField {
 		o.navigation = true
 		o.ajax = true
@@ -110,37 +150,37 @@ func (o Options) Handle(fn func(r Request) wit.Command) Procedure {
 }
 
 // Do always does something with the request without returning a delta
-func (o Options) Do(fn func(r ReadOnlyRequest)) Procedure {
+func (o Options) Do(fn func(r ReadOnlyRequest)) Options {
 	if o.navigation == false && o.ajax == false && o.socket != trueField {
 		o.navigation = true
 		o.ajax = true
 	}
 
 	o.handler = true
-	return Procedure{
-		plans: []plan{
-			{
-				doFn:    fn,
-				Options: o,
-			},
-		},
-	}
+	return o.Tap(fn)
 }
 
 // Tap does something with the request without returning a delta
-func (o Options) Tap(fn func(r ReadOnlyRequest)) Procedure {
+func (o Options) Tap(fn func(r ReadOnlyRequest)) Options {
+	r := o
+
 	if o.navigation == false && o.ajax == false && o.socket != trueField {
 		o.navigation = true
 	}
 
-	return Procedure{
-		plans: []plan{
-			{
-				doFn:    fn,
-				Options: o,
+	r.linkedPlan = &linkedPlan{
+		parent: r.linkedPlan,
+		plan: Procedure{
+			plans: []plan{
+				{
+					doFn:    fn,
+					Options: o,
+				},
 			},
 		},
 	}
+
+	return r
 }
 
 // Sync runs plans sequentially
@@ -332,5 +372,5 @@ var Nil Plan = Procedure{}
 
 // IsNil checks whether the given plan is empty or not
 func IsNil(plan Plan) bool {
-	return len(plan.Procedure().plans) == 0
+	return plan == nil || len(plan.Procedure().plans) == 0
 }

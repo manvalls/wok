@@ -5,27 +5,27 @@ import (
 )
 
 // Command applies given commands directly
-func Command(commands ...wit.Command) Plan {
+func Command(commands ...wit.Command) Options {
 	return DefaultOptions.Command(commands...)
 }
 
 // Run applies the command returned by the provided function
-func Run(fn func(r Request) wit.Command) Plan {
+func Run(fn func(r Request) wit.Command) Options {
 	return DefaultOptions.Run(fn)
 }
 
 // Do does something with the request without returning a delta
-func Do(fn func(r ReadOnlyRequest)) Procedure {
+func Do(fn func(r ReadOnlyRequest)) Options {
 	return DefaultOptions.Do(fn)
 }
 
 // Tap does something with the request without returning a delta
-func Tap(fn func(r ReadOnlyRequest)) Procedure {
+func Tap(fn func(r ReadOnlyRequest)) Options {
 	return DefaultOptions.Tap(fn)
 }
 
 // Handle always applies the command returned by the provided function
-func Handle(fn func(r Request) wit.Command) Plan {
+func Handle(fn func(r Request) wit.Command) Options {
 	return DefaultOptions.Handle(fn)
 }
 
