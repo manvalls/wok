@@ -74,6 +74,22 @@ func List(plans ...Plan) Plan {
 	return Procedure{list}
 }
 
+// Operator represents an entity capable of applying transformations to certain options
+type Operator interface {
+	Map(Options) Options
+}
+
+// Pipe applies given operators one after another
+func (o Options) Pipe(operators ...Operator) Options {
+	for _, op := range operators {
+		if op != nil {
+			o = op.Map(o)
+		}
+	}
+
+	return o
+}
+
 // Procedure returns the computed procedure
 func (o Options) Procedure() Procedure {
 	reverseOrderPlans := []Plan{}
