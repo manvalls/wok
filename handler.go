@@ -96,11 +96,6 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 	case 0:
 	}
 
-	callHeader := r.Header.Get("X-Wok-Call")
-	if callHeader != "" {
-		strings.Split(r.Header.Get("X-Wok-Call"), "?")
-	}
-
 	_, deps := request.FromHeader(depsHeader)
 	depsMap := map[string]bool{}
 	for _, dep := range deps {
