@@ -65,6 +65,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 			Context:       r.Context(),
 			Input:         input,
 			Output:        output,
+			Mutex:         &sync.Mutex{},
 		},
 
 		StatusCodeGetterSetter: &StatusCodeGetterSetter{},

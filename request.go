@@ -31,6 +31,7 @@ type deduper struct {
 type ReadOnlyRequest struct {
 	*http.Request
 	context.Context
+	*sync.Mutex
 	way.Router
 	url.Values
 	OldParams     url.Values
@@ -404,5 +405,7 @@ func (r Request) ServeFile(name string) {
 
 // SetCookie adds a Set-Cookie header to the provided ResponseWriter's headers
 func (r Request) SetCookie(cookie *http.Cookie) {
+	r.Lock()
+	defer r.Unlock()
 	http.SetCookie(r.w, cookie)
 }
