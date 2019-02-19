@@ -56,6 +56,16 @@ func (r ReadOnlyRequest) Send(command wit.Command) error {
 	}
 }
 
+// CmdCh returns Output, useful to meet interface definitions
+func (r ReadOnlyRequest) CmdCh() chan<- wit.Command {
+	return r.Output
+}
+
+// ClientID returns InstanceID, useful to meet interface definitions
+func (r ReadOnlyRequest) ClientID() string {
+	return r.InstanceID
+}
+
 // Request wraps an HTTP request
 type Request struct {
 	ReadOnlyRequest
