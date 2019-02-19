@@ -1,25 +1,29 @@
 package wok
 
 import (
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang/gddo/httputil"
 	"github.com/gorilla/websocket"
 	"github.com/manvalls/way"
 	"github.com/manvalls/wit"
+	"github.com/oklog/ulid"
 )
 
-// Handler implements an HTTP fn which provides wok requests
+// Handler implements an HTTP handler which provides wok requests
 type Handler struct {
-	Root        func() Controller
-	RootName    string
-	RouteHeader string
-	DepsHeader  string
-	InputBuffer int
+	Root             func() Controller
+	RootName         string
+	RouteHeader      string
+	DepsHeader       string
+	InstanceIDHeader string
+	InputBuffer      int
 	websocket.Upgrader
 	way.Router
 }
@@ -28,6 +32,16 @@ type Handler struct {
 type CallData struct {
 	Name string
 	url.Values
+}
+
+var randPool = sync.Pool{
+	New: func() interface{} {
+		return rand.New(
+			rand.NewSource(
+				time.Now().UnixNano(),
+			),
+		)
+	},
 }
 
 func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.Values, output chan<- wit.Command, flush func()) {
@@ -49,6 +63,32 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 		depsHeader = "X-Wok-Deps"
 	}
 
+	instanceIDHeader := h.InstanceIDHeader
+	if instanceIDHeader == "" {
+		instanceIDHeader = "X-Wok-Instance-ID"
+	}
+
+	var instanceCmd wit.Command
+	instanceID := r.Header.Get(instanceIDHeader)
+	if instanceID == "" {
+		r := randPool.Get().(*rand.Rand)
+
+		u, err := ulid.New(
+			ulid.Timestamp(time.Now()),
+			r,
+		)
+
+		randPool.Put(r)
+
+		if err != nil {
+			instanceID = ""
+		} else {
+			instanceID = u.String()
+			script := "<script data-w-rm>!function(){(window.SPH=window.SPH||{}).instance={" + instanceIDHeader + ":'" + instanceID + "'};}()</script>"
+			instanceCmd = wit.Head.One(wit.Append(wit.FromString(script)))
+		}
+	}
+
 	var customHandler func(http.ResponseWriter)
 	custom := false
 
@@ -59,6 +99,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 		ReadOnlyRequest: ReadOnlyRequest{
 			IsSocket:      input != nil && output != nil && flush != nil,
 			IsNavigation:  r.Header.Get("X-Requested-With") != "XMLHttpRequest" || r.Header.Get("X-Navigation") == "true",
+			InstanceID:    instanceID,
 			RequestHeader: r.Header,
 			Router:        h.Router,
 			Request:       r,
@@ -112,6 +153,10 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 		Route:      route,
 	})
 
+	if instanceCmd != nil {
+		delta = wit.List(delta, instanceCmd)
+	}
+
 	usedDeps := getDeps(&request)
 
 	if len(usedDeps) != 0 {
@@ -127,7 +172,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 		}
 
 		script := "<script data-w-rm>!function(){var w=window,o='" + depsHeader + "',i=w.SPH=w.SPH||{},p=i.deps=i.deps||{};(p[o]=p[o]||[]).push(" + list + ");}()</script>"
-		delta = wit.List(delta, wit.Head.One(wit.Prepend(wit.FromString(script))))
+		delta = wit.List(delta, wit.Head.One(wit.Append(wit.FromString(script))))
 	}
 
 	request.varyMutex.Lock()
@@ -167,7 +212,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 
 			script += "}})()</script>"
 
-			delta = wit.List(delta, wit.Head.One(wit.Prepend(wit.FromString(script))))
+			delta = wit.List(delta, wit.Head.One(wit.Append(wit.FromString(script))))
 		}
 
 		contentType := httputil.NegotiateContentType(r, []string{"text/html", "application/json"}, "text/html")

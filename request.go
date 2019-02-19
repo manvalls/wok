@@ -34,6 +34,7 @@ type ReadOnlyRequest struct {
 	*sync.Mutex
 	way.Router
 	url.Values
+	InstanceID    string
 	OldParams     url.Values
 	IsNavigation  bool
 	IsSocket      bool
