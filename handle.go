@@ -15,7 +15,7 @@ type planInfo struct {
 	offset    int
 	params    Params
 	oldParams Params
-	command    wit.Command
+	command   wit.Command
 }
 
 func getOffset(previousRoute []string, newRoute []string) (offset int) {
@@ -321,10 +321,10 @@ mainLoop:
 						info.plan.doFn(subRequest.ReadOnlyRequest)
 					} else {
 						wg.Add(1)
-						go func() {
+						go func(info *planInfo) {
 							info.plan.doFn(subRequest.ReadOnlyRequest)
 							wg.Done()
-						}()
+						}(info)
 					}
 				}
 			}
