@@ -84,7 +84,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 			instanceID = ""
 		} else {
 			instanceID = u.String()
-			script := "<script data-w-rm>!function(){(window.SPH=window.SPH||{}).instance={" + instanceIDHeader + ":'" + instanceID + "'};}()</script>"
+			script := "<script data-w-rm>!function(){(window.SPH=window.SPH||{}).instance={'" + instanceIDHeader + "':'" + instanceID + "'};}()</script>"
 			instanceCmd = wit.Head.One(wit.Append(wit.FromString(script)))
 		}
 	}
