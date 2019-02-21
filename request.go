@@ -38,6 +38,7 @@ type ReadOnlyRequest struct {
 	OldParams     url.Values
 	IsNavigation  bool
 	IsSocket      bool
+	InitialLoad   bool
 	Call          CallData
 	Input         <-chan url.Values
 	Output        chan<- wit.Command

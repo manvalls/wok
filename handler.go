@@ -97,6 +97,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 		ResponseHeader: w.Header(),
 
 		ReadOnlyRequest: ReadOnlyRequest{
+			InitialLoad:   r.Header.Get("X-Requested-With") == "",
 			IsSocket:      input != nil && output != nil && flush != nil,
 			IsNavigation:  r.Header.Get("X-Requested-With") != "XMLHttpRequest" || r.Header.Get("X-Navigation") == "true",
 			InstanceID:    instanceID,
