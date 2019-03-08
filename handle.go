@@ -147,7 +147,7 @@ mainLoop:
 
 		for _, info := range oldPlansInfo {
 			if info.offset >= minOffset {
-				if info.fn != nil {
+				if info.CancelFunc != nil {
 					info.CancelFunc()
 				}
 
@@ -155,7 +155,7 @@ mainLoop:
 			}
 
 			if !paramsMatch(params, info.params) {
-				if info.fn != nil {
+				if info.CancelFunc != nil {
 					info.CancelFunc()
 				}
 
