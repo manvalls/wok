@@ -84,7 +84,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 			instanceID = ""
 		} else {
 			instanceID = u.String()
-			script := "<script data-w-rm>!function(){(window.SPH=window.SPH||{}).instance={'" + instanceIDHeader + "':'" + instanceID + "'};}()</script>"
+			script := "<script data-w-rm>!function(){(window.SPASessionHeadersMap=window.SPH=window.SPASessionHeadersMap||window.SPH||{}).instance={'" + instanceIDHeader + "':'" + instanceID + "'};}()</script>"
 			instanceCmd = wit.Head.One(wit.Append(wit.FromString(script)))
 		}
 	}
@@ -172,7 +172,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 			list += strconv.Quote(dep)
 		}
 
-		script := "<script data-w-rm>!function(){var w=window,o='" + depsHeader + "',i=w.SPH=w.SPH||{},p=i.deps=i.deps||{};(p[o]=p[o]||[]).push(" + list + ");}()</script>"
+		script := "<script data-w-rm>!function(){var w=window,o='" + depsHeader + "',i=w.SPASessionHeadersMap=w.SPH=w.SPH||w.window.SPASessionHeadersMap||{},p=i.deps=i.deps||{};(p[o]=p[o]||[]).push(" + list + ");}()</script>"
 		delta = wit.List(delta, wit.Head.One(wit.Append(wit.FromString(script))))
 	}
 
@@ -199,7 +199,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, input <-chan url.
 		}
 
 		if request.IsNavigation {
-			script := "<script data-w-rm>(function(){(window.SPH=window.SPH||{}).routes={"
+			script := "<script data-w-rm>(function(){(window.SPH=window.SPASessionHeadersMap=window.SPH||window.SPASessionHeadersMap||{}).routes={"
 
 			i := 0
 			for key, value := range routes {
