@@ -13,6 +13,7 @@ github.com/golang/gddo v0.0.0-20200611223618-a4829ef13274/go.mod h1:sam69Hju0uq+
 github.com/golang/lint v0.0.0-20170918230701-e5d664eb928e/go.mod h1:tluoj9z5200jBnyusfRPU2LqT6J+DAorxEvtC7LHB+E=
 github.com/golang/protobuf v1.3.1/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
 github.com/golang/snappy v0.0.0-20170215233205-553a64147049/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
+github.com/google/go-cmp v0.1.1-0.20171103154506-982329095285 h1:voz4XQjiyYyhlp7CjBDaTejOZGKv3R9+5PM5QrDgegQ=
 github.com/google/go-cmp v0.1.1-0.20171103154506-982329095285/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=
 github.com/googleapis/gax-go v2.0.0+incompatible/go.mod h1:SFVmujtThgffbyetf+mdk2eWhX2bMyUtNHzFKcPA9HY=
 github.com/gorilla/websocket v1.4.2 h1:+/TMaTYc4QFitKJxsQ7Yye35DkWvkdLcvGKqM+x0Ufc=
@@ -24,8 +25,8 @@ github.com/kr/pretty v0.2.0/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfn
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/magiconair/properties v1.7.4-0.20170902060319-8d7837e64d3c/go.mod h1:PppfXfuXeibc/6YijjN8zIbojt8czPbwD3XqdrwzmxQ=
-github.com/manvalls/way v0.0.0-20190221141319-7c1519b0dc90 h1:16PXThdZ/Xe2unWb/Zn4cjDANY7gRZp7cILQ3FAFbhI=
-github.com/manvalls/way v0.0.0-20190221141319-7c1519b0dc90/go.mod h1:7MMqWSL5eWfwXM7AXO+TVS2flEbdQp6LErhCgt7XhC0=
+github.com/manvalls/way v0.0.0-20200627075720-9578b1181034 h1:fHfhTT21wV6sgbAtBxk2kHCO0rYJOak339D7BC1eTMU=
+github.com/manvalls/way v0.0.0-20200627075720-9578b1181034/go.mod h1:7MMqWSL5eWfwXM7AXO+TVS2flEbdQp6LErhCgt7XhC0=
 github.com/manvalls/wit v0.0.0-20190215154555-bf9dc158b462 h1:HsDMPHew6LuyW4l538m1/Ho7F/UQwSNv0te2HkC8oK8=
 github.com/manvalls/wit v0.0.0-20190215154555-bf9dc158b462/go.mod h1:uh7q14RdIPFVARNmEzatuMXRFahXZU6garFvS2P0itQ=
 github.com/mattn/go-colorable v0.0.10-0.20170816031813-ad5389df28cd/go.mod h1:9vuHe8Xs5qXnSaW/c/ABM9alt+Vo+STaOChaDxuIBZU=
