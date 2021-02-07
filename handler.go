@@ -5,6 +5,7 @@ import "net/http"
 type Handler struct {
 	Router
 	App
+	BaseURL string
 }
 
 type LocalHandler struct {
@@ -20,7 +21,10 @@ func NewHandler() LocalHandler {
 	return LocalHandler{
 		LocalRouter: router,
 		LocalApp:    app,
-		Handler:     Handler{router, app},
+		Handler: Handler{
+			Router: router,
+			App:    app,
+		},
 	}
 }
 
