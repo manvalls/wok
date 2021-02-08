@@ -16,9 +16,9 @@ type pathNode struct {
 }
 
 type routeMappingNode struct {
-	children   map[string]*routeMappingNode
-	parts      []*pathPart
-	usedParams map[string]int
+	children    map[string]*routeMappingNode
+	parts       []*pathPart
+	extraParams ExtraParams
 }
 
 type routeMapping struct {
@@ -80,7 +80,7 @@ func getMappingKey(params Params, mapping *routeMapping) [][]string {
 	return mappingKey[:largestIndex+1]
 }
 
-func fillRouteMapping(node *routeMappingNode, keypath [][]string, usedParams map[string]int, parts []*pathPart) {
+func fillRouteMapping(node *routeMappingNode, keypath [][]string, extraParams ExtraParams, parts []*pathPart) {
 	key := keypath[0]
 	keypath = keypath[1:]
 
@@ -90,17 +90,17 @@ func fillRouteMapping(node *routeMappingNode, keypath [][]string, usedParams map
 
 	if len(keypath) == 0 {
 		child.parts = parts
-		child.usedParams = usedParams
+		child.extraParams = extraParams
 	} else {
-		fillRouteMapping(child, keypath, usedParams, parts)
+		fillRouteMapping(child, keypath, extraParams, parts)
 	}
 
 	node.children[key[0]] = child
 }
 
-func findRouteParts(keypath [][]string, node *routeMappingNode) (parts []*pathPart, usedParams map[string]int, ok bool) {
+func findRouteParts(keypath [][]string, node *routeMappingNode) (parts []*pathPart, extraParams ExtraParams, ok bool) {
 	if len(keypath) == 0 {
-		return node.parts, node.usedParams, node.parts != nil
+		return node.parts, node.extraParams, node.parts != nil
 	}
 
 	key := keypath[0]
@@ -109,9 +109,9 @@ func findRouteParts(keypath [][]string, node *routeMappingNode) (parts []*pathPa
 	for _, subkey := range key {
 		child, ok := node.children[subkey]
 		if ok {
-			parts, usedParams, ok := findRouteParts(keypath, child)
+			parts, extraParams, ok := findRouteParts(keypath, child)
 			if ok {
-				return parts, usedParams, ok
+				return parts, extraParams, ok
 			}
 		}
 	}
@@ -119,9 +119,9 @@ func findRouteParts(keypath [][]string, node *routeMappingNode) (parts []*pathPa
 	if len(key) != 1 || key[0] != "" {
 		child, ok := node.children[""]
 		if ok {
-			parts, usedParams, ok := findRouteParts(keypath, child)
+			parts, extraParams, ok := findRouteParts(keypath, child)
 			if ok {
-				return parts, usedParams, ok
+				return parts, extraParams, ok
 			}
 		}
 	}
@@ -254,19 +254,16 @@ func (r *LocalRouter) addRoute(route string, path string, extraParams ExtraParam
 		r.routeMappings[route] = mapping
 	}
 
-	usedParams := map[string]int{}
 	for key := range extraParams {
 		if _, ok = mapping.usedParams[key]; !ok {
 			i := len(mapping.usedParams)
 			mapping.usedParams[key] = i
 		}
-
-		usedParams[key] = mapping.usedParams[key]
 	}
 
 	node := mapping.root
 	keypath := getMappingKey(pathParent.extraParams, mapping)
-	fillRouteMapping(node, keypath, usedParams, parts)
+	fillRouteMapping(node, keypath, extraParams, parts)
 }
 
 func (r *LocalRouter) AddRoute(route string, paths interface{}) {
@@ -452,7 +449,7 @@ func (r *LocalRouter) ResolveRoute(req *http.Request, route string, params Param
 
 	keypath := getMappingKey(params, mapping)
 
-	parts, usedParams, ok := findRouteParts(keypath, mapping.root)
+	parts, extraParams, ok := findRouteParts(keypath, mapping.root)
 	if !ok {
 		return "", RouteResult{}
 	}
@@ -490,10 +487,24 @@ func (r *LocalRouter) ResolveRoute(req *http.Request, route string, params Param
 
 	query := Params{}
 	for key, values := range queryParams {
-		if _, ok := usedParams[key]; ok {
+		if v, ok := extraParams[key]; ok {
 			if len(values) > 1 {
-				// BUG: this is not really like this, the used value could be at any position
-				query[key] = values[1:]
+				query[key] = make([]string, 0, len(values)-1)
+
+				var i int
+				var value string
+
+				for i, value = range values {
+					if value == v {
+						break
+					}
+
+					query[key] = append(query[key], value)
+				}
+
+				if i < len(values)-1 {
+					query[key] = append(query[key], values[i+1:]...)
+				}
 			}
 		} else {
 			query[key] = values
