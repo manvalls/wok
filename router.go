@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"sort"
 	"strings"
 )
 
@@ -17,9 +16,9 @@ type pathNode struct {
 }
 
 type routeMappingNode struct {
-	children map[string]*routeMappingNode
-	parts    []*pathPart
-	keypath  []string
+	children   map[string]*routeMappingNode
+	parts      []*pathPart
+	usedParams map[string]int
 }
 
 type routeMapping struct {
@@ -55,35 +54,33 @@ type pathPart struct {
 	isSuffix bool
 }
 
-type RoutePaths = map[string]Params
+type RoutePaths = map[string]ExtraParams
 type Routes = map[string]interface{}
+type ExtraParams = map[string]string
 
-func getMappingKey(params Params, mapping *routeMapping) []string {
-	mappingKey := make([]string, len(mapping.usedParams))
+func getMappingKey(params Params, mapping *routeMapping) [][]string {
+	mappingKey := make([][]string, len(mapping.usedParams))
 	largestIndex := 0
 
 	for key, i := range mapping.usedParams {
 		if len(params[key]) > 0 {
-			sorted := append([]string{}, params[key]...)
-			sort.Strings(sorted)
-
-			mappingKey[i] = ""
-			for _, p := range sorted {
-				mappingKey[i] += "&" + url.QueryEscape(p)
+			mappingKey[i] = make([]string, len(params[key]))
+			for j, p := range params[key] {
+				mappingKey[i][j] = "&" + url.QueryEscape(p)
 			}
 
 			if i > largestIndex {
 				largestIndex = i
 			}
 		} else {
-			mappingKey[i] = ""
+			mappingKey[i] = []string{""}
 		}
 	}
 
 	return mappingKey[:largestIndex+1]
 }
 
-func fillRouteMapping(node *routeMappingNode, keypath []string, rootKeypath []string, parts []*pathPart) {
+func fillRouteMapping(node *routeMappingNode, keypath [][]string, usedParams map[string]int, parts []*pathPart) {
 	key := keypath[0]
 	keypath = keypath[1:]
 
@@ -93,36 +90,38 @@ func fillRouteMapping(node *routeMappingNode, keypath []string, rootKeypath []st
 
 	if len(keypath) == 0 {
 		child.parts = parts
-		child.keypath = rootKeypath
+		child.usedParams = usedParams
 	} else {
-		fillRouteMapping(child, keypath, rootKeypath, parts)
+		fillRouteMapping(child, keypath, usedParams, parts)
 	}
 
-	node.children[key] = child
+	node.children[key[0]] = child
 }
 
-func findRouteParts(keypath []string, node *routeMappingNode) (parts []*pathPart, matchedKeypath []string, ok bool) {
+func findRouteParts(keypath [][]string, node *routeMappingNode) (parts []*pathPart, usedParams map[string]int, ok bool) {
 	if len(keypath) == 0 {
-		return node.parts, node.keypath, node.parts != nil
+		return node.parts, node.usedParams, node.parts != nil
 	}
 
 	key := keypath[0]
 	keypath = keypath[1:]
 
-	child, ok := node.children[key]
-	if ok {
-		parts, matchedKeypath, ok := findRouteParts(keypath, child)
+	for _, subkey := range key {
+		child, ok := node.children[subkey]
 		if ok {
-			return parts, matchedKeypath, ok
+			parts, usedParams, ok := findRouteParts(keypath, child)
+			if ok {
+				return parts, usedParams, ok
+			}
 		}
 	}
 
-	if key != "" {
+	if len(key) != 1 || key[0] != "" {
 		child, ok := node.children[""]
 		if ok {
-			parts, matchedKeypath, ok := findRouteParts(keypath, child)
+			parts, usedParams, ok := findRouteParts(keypath, child)
 			if ok {
-				return parts, matchedKeypath, ok
+				return parts, usedParams, ok
 			}
 		}
 	}
@@ -130,7 +129,16 @@ func findRouteParts(keypath []string, node *routeMappingNode) (parts []*pathPart
 	return nil, nil, false
 }
 
-func (r *LocalRouter) addRoute(route string, path string, extraParams Params) {
+func extraParamsToParams(extraParams ExtraParams) Params {
+	params := Params{}
+	for key, value := range extraParams {
+		params[key] = []string{value}
+	}
+
+	return params
+}
+
+func (r *LocalRouter) addRoute(route string, path string, extraParams ExtraParams) {
 	pathParent := r.pathRoot
 	parts := []*pathPart{}
 	currentPart := ""
@@ -232,7 +240,7 @@ func (r *LocalRouter) addRoute(route string, path string, extraParams Params) {
 
 	pathParent.route = route
 	pathParent.parameters = params
-	pathParent.extraParams = extraParams
+	pathParent.extraParams = extraParamsToParams(extraParams)
 
 	mapping, ok := r.routeMappings[route]
 	if !ok {
@@ -246,22 +254,25 @@ func (r *LocalRouter) addRoute(route string, path string, extraParams Params) {
 		r.routeMappings[route] = mapping
 	}
 
+	usedParams := map[string]int{}
 	for key := range extraParams {
 		if _, ok = mapping.usedParams[key]; !ok {
 			i := len(mapping.usedParams)
 			mapping.usedParams[key] = i
 		}
+
+		usedParams[key] = mapping.usedParams[key]
 	}
 
 	node := mapping.root
-	keypath := getMappingKey(extraParams, mapping)
-	fillRouteMapping(node, keypath, keypath, parts)
+	keypath := getMappingKey(pathParent.extraParams, mapping)
+	fillRouteMapping(node, keypath, usedParams, parts)
 }
 
 func (r *LocalRouter) AddRoute(route string, paths interface{}) {
 	switch p := paths.(type) {
 	case string:
-		r.addRoute(route, p, Params{})
+		r.addRoute(route, p, ExtraParams{})
 	case RoutePaths:
 		for path, params := range p {
 			r.addRoute(route, path, params)
@@ -441,36 +452,57 @@ func (r *LocalRouter) ResolveRoute(req *http.Request, route string, params Param
 
 	keypath := getMappingKey(params, mapping)
 
-	parts, matchedKeypath, ok := findRouteParts(keypath, mapping.root)
+	parts, usedParams, ok := findRouteParts(keypath, mapping.root)
 	if !ok {
 		return "", RouteResult{}
 	}
 
-	pathParams := map[string]bool{}
 	pathResult := ""
+
+	queryParams := Merge(params)
 
 	for _, part := range parts {
 		if part.isParam {
 			pathResult += "/"
-			pathParams[part.part] = true
-			param, ok := params[part.part]
+			param, ok := queryParams[part.part]
 			if ok {
 				pathResult += url.QueryEscape(param[0])
+				if len(queryParams[part.part]) > 1 {
+					queryParams[part.part] = queryParams[part.part][1:]
+				} else {
+					delete(queryParams, part.part)
+				}
 			}
 		} else if part.isSuffix {
-			pathParams[part.part] = true
-			param, ok := params[part.part]
+			param, ok := queryParams[part.part]
 			if ok {
 				pathResult += "/" + strings.Join(param, "/")
+				if len(queryParams[part.part]) > 1 {
+					queryParams[part.part] = queryParams[part.part][1:]
+				} else {
+					delete(queryParams, part.part)
+				}
 			}
 		} else {
 			pathResult += "/" + part.part
 		}
 	}
 
-	// TODO: add query param to path result
+	query := Params{}
+	for key, values := range queryParams {
+		if _, ok := usedParams[key]; ok {
+			if len(values) > 1 {
+				// BUG: this is not really like this, the used value could be at any position
+				query[key] = values[1:]
+			}
+		} else {
+			query[key] = values
+		}
+	}
 
-	// TODO: run maps
+	pathResult += "?" + query.Encode()
+
+	finalRoute, finalParams, reloadOn := r.runMaps(req, route, params)
 
 	// TODO: resolve controllers
 
