@@ -34,10 +34,27 @@ type RouteRedirection struct {
 
 type MapFunc = func(r *http.Request, route string, params Params) RouteRedirection
 
+type RouteHandlerFunc = func(r *http.Request, route string, params Params) RouteResult
+
+type RouteController struct {
+	Controller string
+	Method     string
+	Params     []string
+
+	DependsOn       []string
+	RunAfter        []string
+	Batch           bool
+	Lazy            bool
+	Socket          bool
+	NeedsCleanup    bool
+	NeedsValidation bool
+}
+
 type LocalRouter struct {
 	pathRoot      *pathNode
 	mapFuncs      map[string][]*MapFunc
 	routeMappings map[string]*routeMapping
+	handlers      map[string][]RouteHandlerFunc
 }
 
 func NewLocalRouter() *LocalRouter {
@@ -45,6 +62,7 @@ func NewLocalRouter() *LocalRouter {
 		pathRoot:      &pathNode{children: map[string]*pathNode{}},
 		mapFuncs:      map[string][]*MapFunc{},
 		routeMappings: map[string]*routeMapping{},
+		handlers:      map[string][]RouteHandlerFunc{},
 	}
 }
 
@@ -344,12 +362,7 @@ func match(parts []string, params []string, parent *pathNode) ([]string, *pathNo
 }
 
 func (r *LocalRouter) Map(route string, mapFn MapFunc) {
-	mapFuncs, ok := r.mapFuncs[route]
-	if !ok {
-		mapFuncs = []*MapFunc{}
-	}
-
-	r.mapFuncs[route] = append(mapFuncs, &mapFn)
+	r.mapFuncs[route] = append(r.mapFuncs[route], &mapFn)
 }
 
 func (r *LocalRouter) ResolveURL(req *http.Request, urlToMatch *url.URL) RouteResult {
@@ -396,10 +409,7 @@ func (r *LocalRouter) ResolveURL(req *http.Request, urlToMatch *url.URL) RouteRe
 
 	resolvedParams := Merge(matchedPart.extraParams, params, urlToMatch.Query())
 	finalRoute, finalParams, reloadOn := r.runMaps(req, matchedPart.route, resolvedParams)
-
-	// TODO: resolve controllers
-
-	return RouteResult{}
+	return r.resolve(req, finalRoute, finalParams, reloadOn)
 }
 
 func (r *LocalRouter) runMaps(req *http.Request, route string, params Params) (currentRoute string, currentParams Params, reloadOn []string) {
@@ -514,8 +524,101 @@ func (r *LocalRouter) ResolveRoute(req *http.Request, route string, params Param
 	pathResult += "?" + query.Encode()
 
 	finalRoute, finalParams, reloadOn := r.runMaps(req, route, params)
+	return pathResult, r.resolve(req, finalRoute, finalParams, reloadOn)
+}
 
-	// TODO: resolve controllers
+func (r *LocalRouter) resolve(req *http.Request, route string, params Params, reloadOn []string) RouteResult {
+	splitRoute := strings.Split(route, ".")
+	result := RouteResult{}
 
-	return "", RouteResult{}
+	for {
+		if handlers, ok := r.handlers[route]; ok {
+			for _, handler := range handlers {
+				partialResult := handler(req, route, params)
+				result.ReloadOn = append(result.ReloadOn, partialResult.ReloadOn...)
+				result.Controllers = append(result.Controllers, partialResult.Controllers...)
+			}
+		}
+
+		if len(splitRoute) <= 1 {
+			break
+		}
+
+		splitRoute = splitRoute[1:]
+		route = strings.Join(splitRoute, ".")
+	}
+
+	return result
+}
+
+func (r *LocalRouter) handleRoute(route string, handler RouteHandlerFunc) {
+	r.handlers[route] = append(r.handlers[route], handler)
+}
+
+func (r *LocalRouter) HandleRoute(route string, handlers ...interface{}) {
+	for _, handler := range handlers {
+		switch h := handler.(type) {
+		case string:
+			r.handleRoute(route, func(r *http.Request, route string, params Params) RouteResult {
+				return RouteResult{
+					Controllers: []ControllerPlan{
+						{
+							Controller: h,
+						},
+					},
+				}
+			})
+
+		case RouteController:
+			allowedParams := map[string]bool{}
+			for _, p := range h.Params {
+				allowedParams[p] = true
+			}
+
+			r.handleRoute(route, func(r *http.Request, route string, params Params) RouteResult {
+				filteredParams := Params{}
+				for key, value := range params {
+					if allowedParams[key] {
+						filteredParams[key] = value
+					}
+				}
+
+				plan := ControllerPlan{
+					Controller: h.Controller,
+					Method:     h.Method,
+					Params:     Params{},
+
+					DependsOn:       h.DependsOn,
+					RunAfter:        h.RunAfter,
+					Batch:           h.Batch,
+					Lazy:            h.Lazy,
+					Socket:          h.Socket,
+					NeedsCleanup:    h.NeedsCleanup,
+					NeedsValidation: h.NeedsValidation,
+				}
+
+				return RouteResult{
+					Controllers: []ControllerPlan{plan},
+				}
+			})
+
+		case ControllerPlan:
+			r.handleRoute(route, func(r *http.Request, route string, params Params) RouteResult {
+				return RouteResult{
+					Controllers: []ControllerPlan{h},
+				}
+			})
+
+		case RouteHandlerFunc:
+			r.handleRoute(route, h)
+		}
+	}
+}
+
+type RouteHandlers = map[string][]interface{}
+
+func (r *LocalRouter) HandleRoutes(handlers RouteHandlers) {
+	for route, h := range handlers {
+		r.HandleRoute(route, h)
+	}
 }
