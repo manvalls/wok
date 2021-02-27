@@ -209,6 +209,7 @@ func (r *LocalRouter) addRoute(route string, path string, extraParams ExtraParam
 			}
 
 			parts = append(parts, &pathPart{currentPart, false, false})
+			next = currentPart
 		}
 
 		if !isSuffix {
