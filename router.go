@@ -73,8 +73,14 @@ type pathPart struct {
 }
 
 type RoutePaths = map[string]ExtraParams
-type Routes = map[string]interface{}
+type Routes = map[string]RoutePaths
 type ExtraParams = map[string]string
+
+func RoutePath(path string) RoutePaths {
+	return RoutePaths{
+		path: ExtraParams{},
+	}
+}
 
 func getMappingKey(params Params, mapping *routeMapping) [][]string {
 	mappingKey := make([][]string, len(mapping.usedParams))
@@ -95,10 +101,20 @@ func getMappingKey(params Params, mapping *routeMapping) [][]string {
 		}
 	}
 
+	if largestIndex >= len(mappingKey)-1 {
+		return mappingKey
+	}
+
 	return mappingKey[:largestIndex+1]
 }
 
 func fillRouteMapping(node *routeMappingNode, keypath [][]string, extraParams ExtraParams, parts []*pathPart) {
+	if len(keypath) == 0 {
+		node.parts = parts
+		node.extraParams = extraParams
+		return
+	}
+
 	key := keypath[0]
 	keypath = keypath[1:]
 
@@ -106,13 +122,7 @@ func fillRouteMapping(node *routeMappingNode, keypath [][]string, extraParams Ex
 		children: map[string]*routeMappingNode{},
 	}
 
-	if len(keypath) == 0 {
-		child.parts = parts
-		child.extraParams = extraParams
-	} else {
-		fillRouteMapping(child, keypath, extraParams, parts)
-	}
-
+	fillRouteMapping(child, keypath, extraParams, parts)
 	node.children[key[0]] = child
 }
 
@@ -284,14 +294,9 @@ func (r *LocalRouter) addRoute(route string, path string, extraParams ExtraParam
 	fillRouteMapping(node, keypath, extraParams, parts)
 }
 
-func (r *LocalRouter) AddRoute(route string, paths interface{}) {
-	switch p := paths.(type) {
-	case string:
-		r.addRoute(route, p, ExtraParams{})
-	case RoutePaths:
-		for path, params := range p {
-			r.addRoute(route, path, params)
-		}
+func (r *LocalRouter) AddRoute(route string, paths RoutePaths) {
+	for path, params := range paths {
+		r.addRoute(route, path, params)
 	}
 }
 
@@ -544,7 +549,7 @@ func (r *LocalRouter) resolve(req *http.Request, route string, params Params, re
 			break
 		}
 
-		splitRoute = splitRoute[1:]
+		splitRoute = splitRoute[:len(splitRoute)-1]
 		route = strings.Join(splitRoute, ".")
 	}
 
@@ -555,70 +560,70 @@ func (r *LocalRouter) handleRoute(route string, handler RouteHandlerFunc) {
 	r.handlers[route] = append(r.handlers[route], handler)
 }
 
-func (r *LocalRouter) HandleRoute(route string, handlers ...interface{}) {
-	for _, handler := range handlers {
-		switch h := handler.(type) {
-		case string:
-			r.handleRoute(route, func(r *http.Request, route string, params Params) RouteResult {
-				return RouteResult{
-					Controllers: []ControllerPlan{
-						{
-							Controller: h,
-						},
-					},
-				}
-			})
-
-		case RouteController:
-			allowedParams := map[string]bool{}
-			for _, p := range h.Params {
-				allowedParams[p] = true
-			}
-
-			r.handleRoute(route, func(r *http.Request, route string, params Params) RouteResult {
-				filteredParams := Params{}
-				for key, value := range params {
-					if allowedParams[key] {
-						filteredParams[key] = value
-					}
-				}
-
-				plan := ControllerPlan{
-					Controller: h.Controller,
-					Method:     h.Method,
-					Params:     Params{},
-
-					DependsOn:       h.DependsOn,
-					RunAfter:        h.RunAfter,
-					Batch:           h.Batch,
-					Lazy:            h.Lazy,
-					Socket:          h.Socket,
-					NeedsCleanup:    h.NeedsCleanup,
-					NeedsValidation: h.NeedsValidation,
-				}
-
-				return RouteResult{
-					Controllers: []ControllerPlan{plan},
-				}
-			})
-
-		case ControllerPlan:
-			r.handleRoute(route, func(r *http.Request, route string, params Params) RouteResult {
-				return RouteResult{
-					Controllers: []ControllerPlan{h},
-				}
-			})
-
-		case RouteHandlerFunc:
-			r.handleRoute(route, h)
+func StaticHandler(h string) RouteHandlerFunc {
+	return func(r *http.Request, route string, params Params) RouteResult {
+		return RouteResult{
+			Controllers: []ControllerPlan{
+				{
+					Controller: h,
+				},
+			},
 		}
 	}
 }
 
-type RouteHandlers = map[string][]interface{}
+func ControllerHandler(h RouteController) RouteHandlerFunc {
+	allowedParams := map[string]bool{}
+	for _, p := range h.Params {
+		allowedParams[p] = true
+	}
+
+	return func(r *http.Request, route string, params Params) RouteResult {
+		filteredParams := Params{}
+		for key, value := range params {
+			if allowedParams[key] {
+				filteredParams[key] = value
+			}
+		}
+
+		plan := ControllerPlan{
+			Controller: h.Controller,
+			Method:     h.Method,
+			Params:     filteredParams,
+
+			DependsOn:       h.DependsOn,
+			RunAfter:        h.RunAfter,
+			Batch:           h.Batch,
+			Lazy:            h.Lazy,
+			Socket:          h.Socket,
+			NeedsCleanup:    h.NeedsCleanup,
+			NeedsValidation: h.NeedsValidation,
+		}
+
+		return RouteResult{
+			Controllers: []ControllerPlan{plan},
+		}
+	}
+}
+
+func ControllerPlanHandler(h ControllerPlan) RouteHandlerFunc {
+	return func(r *http.Request, route string, params Params) RouteResult {
+		return RouteResult{
+			Controllers: []ControllerPlan{h},
+		}
+	}
+}
+
+func (r *LocalRouter) HandleRoute(route string, handlers ...RouteHandlerFunc) {
+	for _, handler := range handlers {
+		r.handleRoute(route, handler)
+	}
+}
+
+type RouteHandlers = map[string][]RouteHandlerFunc
 
 func (r *LocalRouter) HandleRoutes(handlers RouteHandlers) {
 	for route, h := range handlers {
-		r.HandleRoute(route, h)
+		r.HandleRoute(route, h...)
 	}
 }
