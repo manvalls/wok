@@ -1,7 +1,7 @@
 package wok
 
 import (
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"testing"
@@ -50,6 +50,7 @@ func init() {
 				Route: "main.error",
 				Params: Params{
 					"errorCode": {"404"},
+					"page":      params["page"],
 				},
 				ReloadOn: []string{"newUser"},
 			}
@@ -66,33 +67,44 @@ func init() {
 			StaticHandler("app.base"),
 		},
 		"main.landing": {
-			StaticHandler("app.base"),
+			StaticHandler("app.landing"),
 		},
 		"main.error": {
 			ControllerHandler(RouteController{
 				Controller: "app.error",
-				Params:     []string{"errorCode"},
+				Params:     []string{"errorCode", "page"},
 			}),
 		},
 		"main.user": {
 			ControllerHandler(RouteController{
 				Controller: "app.user",
-				Params:     []string{"userId", "lang"},
+				Params:     []string{"userId", "lang", "dialect"},
 			}),
 		},
 		"main.admin": {
 			ControllerPlanHandler(ControllerPlan{
 				Controller: "app.user",
-				Params:     Params{"userId": {"admin"}},
+				Params:     Params{"userId": {"adminSuperPlus"}},
 			}),
 		},
 	})
 }
 
-func TestResolveURL(t *testing.T) {
-	parsedURL, _ := url.Parse("/usuarios/asd")
+func TestResolveLanding(t *testing.T) {
+	parsedURL, _ := url.Parse("/")
 	result := router.ResolveURL(&http.Request{}, parsedURL)
-	fmt.Println(result.Controllers)
+
+	jsonResult, _ := json.Marshal(result)
+	expectedJSON, _ := json.Marshal(RouteResult{
+		Controllers: []ControllerPlan{
+			{Controller: "app.landing"},
+			{Controller: "app.base"},
+		},
+	})
+
+	if string(jsonResult) != string(expectedJSON) {
+		t.Error("Got" + string(jsonResult) + ", expected " + string(expectedJSON))
+	}
 }
 
 func TestResolveRoute(t *testing.T) {
