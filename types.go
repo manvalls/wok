@@ -32,6 +32,7 @@ type ControllerPlan struct {
 	DependsOn       []string
 	RunAfter        []string
 	Batch           bool
+	Persistent      bool
 	Lazy            bool
 	Socket          bool
 	NeedsCleanup    bool

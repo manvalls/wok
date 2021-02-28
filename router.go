@@ -43,6 +43,7 @@ type RouteController struct {
 
 	DependsOn       []string
 	RunAfter        []string
+	Persistent      bool
 	Batch           bool
 	Lazy            bool
 	Socket          bool
@@ -595,6 +596,7 @@ func ControllerHandler(h RouteController) RouteHandlerFunc {
 			DependsOn:       h.DependsOn,
 			RunAfter:        h.RunAfter,
 			Batch:           h.Batch,
+			Persistent:      h.Persistent,
 			Lazy:            h.Lazy,
 			Socket:          h.Socket,
 			NeedsCleanup:    h.NeedsCleanup,
