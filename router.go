@@ -538,6 +538,10 @@ func (r *LocalRouter) resolve(req *http.Request, route string, params Params, re
 	splitRoute := strings.Split(route, ".")
 	result := RouteResult{}
 
+	if len(reloadOn) > 0 {
+		result.ReloadOn = reloadOn
+	}
+
 	for {
 		if handlers, ok := r.handlers[route]; ok {
 			for _, handler := range handlers {

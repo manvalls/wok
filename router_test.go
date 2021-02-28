@@ -50,7 +50,6 @@ func init() {
 				Route: "main.error",
 				Params: Params{
 					"errorCode": {"404"},
-					"page":      params["page"],
 				},
 				ReloadOn: []string{"newUser"},
 			}
@@ -93,20 +92,72 @@ func init() {
 	})
 }
 
-func TestResolveLanding(t *testing.T) {
-	parsedURL, _ := url.Parse("/?foo=bar&foo=baz")
-	result := router.ResolveURL(&http.Request{}, parsedURL)
+func TestResolveURL(t *testing.T) {
 
-	jsonResult, _ := json.Marshal(result)
-	expectedJSON, _ := json.Marshal(RouteResult{
-		Controllers: []ControllerPlan{
-			{Controller: "app.landing", Params: Params{"foo": {"bar", "baz"}}},
-			{Controller: "app.base"},
+	type testCase struct {
+		url            string
+		expectedResult RouteResult
+	}
+
+	testCases := []testCase{
+		{
+			url: "/?foo=bar&foo=baz",
+			expectedResult: RouteResult{
+				Controllers: []ControllerPlan{
+					{Controller: "app.landing", Params: Params{"foo": {"bar", "baz"}}},
+					{Controller: "app.base"},
+				},
+			},
 		},
-	})
+		{
+			url: "/usuarios/pepe",
+			expectedResult: RouteResult{
+				Controllers: []ControllerPlan{
+					{Controller: "app.user", Params: Params{"userId": {"pepe"}, "lang": {"es"}, "dialect": {"ES"}}},
+					{Controller: "app.base"},
+				},
+			},
+		},
+		{
+			url: "/users/pepe",
+			expectedResult: RouteResult{
+				Controllers: []ControllerPlan{
+					{Controller: "app.user", Params: Params{"userId": {"pepe"}, "lang": {"en"}}},
+					{Controller: "app.base"},
+				},
+			},
+		},
+		{
+			url: "/users/john",
+			expectedResult: RouteResult{
+				ReloadOn: []string{"newUser"},
+				Controllers: []ControllerPlan{
+					{Controller: "app.error", Params: Params{"errorCode": {"404"}}},
+					{Controller: "app.base"},
+				},
+			},
+		},
+		{
+			url: "/users/admin",
+			expectedResult: RouteResult{
+				Controllers: []ControllerPlan{
+					{Controller: "app.user", Params: Params{"userId": {"adminSuperPlus"}}},
+					{Controller: "app.base"},
+				},
+			},
+		},
+	}
 
-	if string(jsonResult) != string(expectedJSON) {
-		t.Error("Got" + string(jsonResult) + ", expected " + string(expectedJSON))
+	for _, testCase := range testCases {
+		parsedURL, _ := url.Parse(testCase.url)
+		result := router.ResolveURL(&http.Request{}, parsedURL)
+
+		jsonResult, _ := json.Marshal(result)
+		expectedJSON, _ := json.Marshal(testCase.expectedResult)
+
+		if string(jsonResult) != string(expectedJSON) {
+			t.Error("\n\nGot:\n\n" + string(jsonResult) + "\n\nExpected:\n\n" + string(expectedJSON))
+		}
 	}
 }
 
