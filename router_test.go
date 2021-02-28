@@ -67,7 +67,10 @@ func init() {
 			StaticHandler("app.base"),
 		},
 		"main.landing": {
-			StaticHandler("app.landing"),
+			ControllerHandler(RouteController{
+				Controller: "app.landing",
+				Params:     []string{"foo"},
+			}),
 		},
 		"main.error": {
 			ControllerHandler(RouteController{
@@ -91,13 +94,13 @@ func init() {
 }
 
 func TestResolveLanding(t *testing.T) {
-	parsedURL, _ := url.Parse("/")
+	parsedURL, _ := url.Parse("/?foo=bar&foo=baz")
 	result := router.ResolveURL(&http.Request{}, parsedURL)
 
 	jsonResult, _ := json.Marshal(result)
 	expectedJSON, _ := json.Marshal(RouteResult{
 		Controllers: []ControllerPlan{
-			{Controller: "app.landing"},
+			{Controller: "app.landing", Params: Params{"foo": {"bar", "baz"}}},
 			{Controller: "app.base"},
 		},
 	})
