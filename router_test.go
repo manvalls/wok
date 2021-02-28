@@ -26,9 +26,7 @@ func init() {
 				"lang":    "es",
 				"dialect": "ES",
 			},
-			"/users/admin": ExtraParams{
-				"lang": "en",
-			},
+			"/users/admin": ExtraParams{},
 		},
 		"main.error": RoutePaths{
 			"/:page*": ExtraParams{
@@ -110,6 +108,15 @@ func TestResolveURL(t *testing.T) {
 			},
 		},
 		{
+			url: "/foo/bar",
+			expectedResult: RouteResult{
+				Controllers: []ControllerPlan{
+					{Controller: "app.error", Params: Params{"errorCode": {"404"}, "page": {"foo/bar"}}},
+					{Controller: "app.base"},
+				},
+			},
+		},
+		{
 			url: "/usuarios/pepe",
 			expectedResult: RouteResult{
 				Controllers: []ControllerPlan{
@@ -162,5 +169,93 @@ func TestResolveURL(t *testing.T) {
 }
 
 func TestResolveRoute(t *testing.T) {
+	type testCase struct {
+		route          string
+		params         Params
+		expectedURL    string
+		expectedResult RouteResult
+	}
 
+	testCases := []testCase{
+		{
+			route:       "main.landing",
+			params:      Params{"foo": {"bar", "baz"}},
+			expectedURL: "/?foo=bar&foo=baz",
+			expectedResult: RouteResult{
+				Controllers: []ControllerPlan{
+					{Controller: "app.landing", Params: Params{"foo": {"bar", "baz"}}},
+					{Controller: "app.base"},
+				},
+			},
+		},
+		{
+			route:       "main.user",
+			params:      Params{"userId": {"pepe"}, "lang": {"es"}, "dialect": {"ES"}},
+			expectedURL: "/usuarios/pepe",
+			expectedResult: RouteResult{
+				Controllers: []ControllerPlan{
+					{Controller: "app.user", Params: Params{"userId": {"pepe"}, "lang": {"es"}, "dialect": {"ES"}}},
+					{Controller: "app.base"},
+				},
+			},
+		},
+		{
+			route:       "main.user",
+			params:      Params{"userId": {"pepe"}, "lang": {"en"}},
+			expectedURL: "/users/pepe",
+			expectedResult: RouteResult{
+				Controllers: []ControllerPlan{
+					{Controller: "app.user", Params: Params{"userId": {"pepe"}, "lang": {"en"}}},
+					{Controller: "app.base"},
+				},
+			},
+		},
+		{
+			route:       "main.admin",
+			expectedURL: "/users/admin",
+			expectedResult: RouteResult{
+				Controllers: []ControllerPlan{
+					{Controller: "app.user", Params: Params{"userId": {"adminSuperPlus"}}},
+					{Controller: "app.base"},
+				},
+			},
+		},
+		{
+			route:       "main.admin",
+			params:      Params{"lang": {"es"}, "dialect": {"ES"}},
+			expectedURL: "/usuarios/admin",
+			expectedResult: RouteResult{
+				Controllers: []ControllerPlan{
+					{Controller: "app.user", Params: Params{"userId": {"adminSuperPlus"}}},
+					{Controller: "app.base"},
+				},
+			},
+		},
+		{
+			route:       "main.error",
+			params:      Params{"errorCode": {"404"}, "page": {"foo/bar"}},
+			expectedURL: "/foo/bar",
+			expectedResult: RouteResult{
+				Controllers: []ControllerPlan{
+					{Controller: "app.error", Params: Params{"errorCode": {"404"}, "page": {"foo/bar"}}},
+					{Controller: "app.base"},
+				},
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		url, result := router.ResolveRoute(&http.Request{}, testCase.route, testCase.params)
+
+		if url != testCase.expectedURL {
+			t.Error("\n\nGot:\n\n" + url + "\n\nExpected:\n\n" + testCase.expectedURL)
+		}
+
+		jsonResult, _ := json.Marshal(result)
+		expectedJSON, _ := json.Marshal(testCase.expectedResult)
+
+		if string(jsonResult) != string(expectedJSON) {
+			t.Error("\n\nGot:\n\n" + string(jsonResult) + "\n\nExpected:\n\n" + string(expectedJSON))
+		}
+	}
 }

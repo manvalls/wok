@@ -475,31 +475,37 @@ func (r *LocalRouter) ResolveRoute(req *http.Request, route string, params Param
 
 	queryParams := Merge(params)
 
-	for _, part := range parts {
-		if part.isParam {
-			pathResult += "/"
-			param, ok := queryParams[part.part]
-			if ok {
-				pathResult += url.QueryEscape(param[0])
-				if len(queryParams[part.part]) > 1 {
-					queryParams[part.part] = queryParams[part.part][1:]
-				} else {
-					delete(queryParams, part.part)
+	if len(parts) == 0 {
+		pathResult = "/"
+	} else {
+
+		for _, part := range parts {
+			if part.isSuffix {
+				param, ok := queryParams[part.part]
+				if ok && len(param) > 0 {
+					pathResult += "/" + param[0]
+					if len(queryParams[part.part]) > 1 {
+						queryParams[part.part] = queryParams[part.part][1:]
+					} else {
+						delete(queryParams, part.part)
+					}
 				}
-			}
-		} else if part.isSuffix {
-			param, ok := queryParams[part.part]
-			if ok {
-				pathResult += "/" + strings.Join(param, "/")
-				if len(queryParams[part.part]) > 1 {
-					queryParams[part.part] = queryParams[part.part][1:]
-				} else {
-					delete(queryParams, part.part)
+			} else if part.isParam {
+				pathResult += "/"
+				param, ok := queryParams[part.part]
+				if ok && len(param) > 0 {
+					pathResult += url.QueryEscape(param[0])
+					if len(queryParams[part.part]) > 1 {
+						queryParams[part.part] = queryParams[part.part][1:]
+					} else {
+						delete(queryParams, part.part)
+					}
 				}
+			} else {
+				pathResult += "/" + part.part
 			}
-		} else {
-			pathResult += "/" + part.part
 		}
+
 	}
 
 	query := Params{}
@@ -528,7 +534,9 @@ func (r *LocalRouter) ResolveRoute(req *http.Request, route string, params Param
 		}
 	}
 
-	pathResult += "?" + query.Encode()
+	if len(query) > 0 {
+		pathResult += "?" + query.Encode()
+	}
 
 	finalRoute, finalParams, reloadOn := r.runMaps(req, route, params)
 	return pathResult, r.resolve(req, finalRoute, finalParams, reloadOn)
