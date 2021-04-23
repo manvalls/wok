@@ -49,6 +49,8 @@ type RouteController struct {
 	Socket          bool
 	NeedsCleanup    bool
 	NeedsValidation bool
+	Cache           bool
+	Prefetch        bool
 }
 
 type LocalRouter struct {
@@ -613,6 +615,8 @@ func ControllerHandler(h RouteController) RouteHandlerFunc {
 			Socket:          h.Socket,
 			NeedsCleanup:    h.NeedsCleanup,
 			NeedsValidation: h.NeedsValidation,
+			Cache:           h.Cache,
+			Prefetch:        h.Prefetch,
 		}
 
 		return RouteResult{

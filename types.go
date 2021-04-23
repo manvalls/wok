@@ -29,14 +29,16 @@ type ControllerPlan struct {
 	Method     string
 	Params
 
-	DependsOn       []string
-	RunAfter        []string
-	Batch           bool
-	Persistent      bool
-	Lazy            bool
-	Socket          bool
-	NeedsCleanup    bool
-	NeedsValidation bool
+	DependsOn       []string // E.g, "main", "header" and so on - when these are re-rendered, current controller needs to be re-rendered as well, and when cleaned up, the same
+	RunAfter        []string // If these controllers are to be ran, call the current one after getting the response from them
+	Persistent      bool     // Things that stay in the page even after navigating away - only re-applied when DependsOn are invalidated
+	Batch           bool     // All controllers with Batch: true are grouped together in a single POST request
+	Lazy            bool     // When true, don't run on the initial page load, run them from the client instead
+	Socket          bool     // If true, use a real-time websocket
+	NeedsCleanup    bool     // If true, run the cleanup function when navigating away
+	NeedsValidation bool     // If true, run the validation function before calling the controller
+	Cache           bool     // If true, cache the result for subsequent requests
+	Prefetch        bool     // If true, include along with the parent request when exposed
 }
 
 // ControllerRequest represents a request to run a controller
