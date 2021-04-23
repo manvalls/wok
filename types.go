@@ -42,7 +42,6 @@ type ControllerPlan struct {
 // ControllerRequest represents a request to run a controller
 type ControllerRequest interface {
 	Controller() string
-	Method() string
 	RunAfter() []string
 	Cleanup() bool
 	Validate() bool
