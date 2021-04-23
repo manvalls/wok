@@ -41,16 +41,16 @@ type RouteController struct {
 	Method     string
 	Params     []string
 
-	DependsOn       []string
-	RunAfter        []string
-	Persistent      bool
-	Batch           bool
-	Lazy            bool
-	Socket          bool
-	NeedsCleanup    bool
-	NeedsValidation bool
-	Cache           bool
-	Prefetch        bool
+	DependsOn     []string
+	RunAfter      []string
+	Persistent    bool
+	Batch         bool
+	Lazy          bool
+	Socket        bool
+	NeedsCleanup  bool
+	HasValidation bool
+	Cache         bool
+	Prefetch      bool
 }
 
 type LocalRouter struct {
@@ -607,16 +607,16 @@ func ControllerHandler(h RouteController) RouteHandlerFunc {
 			Method:     h.Method,
 			Params:     filteredParams,
 
-			DependsOn:       h.DependsOn,
-			RunAfter:        h.RunAfter,
-			Batch:           h.Batch,
-			Persistent:      h.Persistent,
-			Lazy:            h.Lazy,
-			Socket:          h.Socket,
-			NeedsCleanup:    h.NeedsCleanup,
-			NeedsValidation: h.NeedsValidation,
-			Cache:           h.Cache,
-			Prefetch:        h.Prefetch,
+			DependsOn:     h.DependsOn,
+			RunAfter:      h.RunAfter,
+			Batch:         h.Batch,
+			Persistent:    h.Persistent,
+			Lazy:          h.Lazy,
+			Socket:        h.Socket,
+			NeedsCleanup:  h.NeedsCleanup,
+			HasValidation: h.HasValidation,
+			Cache:         h.Cache,
+			Prefetch:      h.Prefetch,
 		}
 
 		return RouteResult{
