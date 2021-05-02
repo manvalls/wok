@@ -458,17 +458,17 @@ func (r *LocalRouter) runMaps(req *http.Request, route string, params Params) (c
 	}
 }
 
-func (r *LocalRouter) ResolveRoute(req *http.Request, route string, params Params) (resolvedURL string, result RouteResult) {
+func (r *LocalRouter) ResolveRoute(req *http.Request, route string, params Params) (resolvedURL string) {
 	mapping, ok := r.routeMappings[route]
 	if !ok {
-		return "", RouteResult{}
+		return ""
 	}
 
 	keypath := getMappingKey(params, mapping)
 
 	parts, extraParams, ok := findRouteParts(keypath, mapping.root)
 	if !ok {
-		return "", RouteResult{}
+		return ""
 	}
 
 	pathResult := ""
@@ -538,8 +538,7 @@ func (r *LocalRouter) ResolveRoute(req *http.Request, route string, params Param
 		pathResult += "?" + query.Encode()
 	}
 
-	finalRoute, finalParams, reloadOn := r.runMaps(req, route, params)
-	return pathResult, r.resolve(req, finalRoute, finalParams, reloadOn)
+	return pathResult
 }
 
 func (r *LocalRouter) resolve(req *http.Request, route string, params Params, reloadOn []string) RouteResult {

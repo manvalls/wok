@@ -17,6 +17,12 @@ type Request struct {
 	*http.Request
 	ControllerRequest
 	wq.Node
+
+	router Router
+}
+
+func (r Request) Route(route string, params Params) (resolvedURL string) {
+	return r.router.ResolveRoute(r.Request, route, params)
 }
 
 type ControllerFunc func(r Request)
@@ -41,6 +47,7 @@ func (a *LocalApp) Run(r *http.Request, controllerRequest ControllerRequest) {
 				controllerRequest.SendDelta(d)
 			},
 		},
+		a.Router,
 	}
 
 	if fn, ok := a.controllers[controllerRequest.Controller()]; ok {

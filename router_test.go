@@ -245,17 +245,10 @@ func TestResolveRoute(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		url, result := router.ResolveRoute(&http.Request{}, testCase.route, testCase.params)
+		url := router.ResolveRoute(&http.Request{}, testCase.route, testCase.params)
 
 		if url != testCase.expectedURL {
 			t.Error("\n\nGot:\n\n" + url + "\n\nExpected:\n\n" + testCase.expectedURL)
-		}
-
-		jsonResult, _ := json.Marshal(result)
-		expectedJSON, _ := json.Marshal(testCase.expectedResult)
-
-		if string(jsonResult) != string(expectedJSON) {
-			t.Error("\n\nGot:\n\n" + string(jsonResult) + "\n\nExpected:\n\n" + string(expectedJSON))
 		}
 	}
 }

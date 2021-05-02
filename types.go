@@ -13,7 +13,7 @@ type Params = url.Values
 // Router computes the list of controllers that should run for a given URL or route
 type Router interface {
 	ResolveURL(r *http.Request, url *url.URL) (result RouteResult)
-	ResolveRoute(r *http.Request, route string, params Params) (resolvedURL string, result RouteResult)
+	ResolveRoute(r *http.Request, route string, params Params) (resolvedURL string)
 }
 
 // RouteResult contains the resolved plan for a route
