@@ -41,14 +41,12 @@ type RouteController struct {
 	Method     string
 	Params     []string
 
-	DependsOn     []string
 	Persistent    bool
 	Lazy          bool
 	Socket        bool
 	NeedsCleanup  bool
 	HasValidation bool
 	Cache         bool
-	Prefetch      bool
 }
 
 type LocalRouter struct {
