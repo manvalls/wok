@@ -42,9 +42,7 @@ type RouteController struct {
 	Params     []string
 
 	DependsOn     []string
-	RunAfter      []string
 	Persistent    bool
-	Batch         bool
 	Lazy          bool
 	Socket        bool
 	NeedsCleanup  bool
@@ -608,15 +606,12 @@ func ControllerHandler(h RouteController) RouteHandlerFunc {
 			Params:     filteredParams,
 
 			DependsOn:     h.DependsOn,
-			RunAfter:      h.RunAfter,
-			Batch:         h.Batch,
 			Persistent:    h.Persistent,
 			Lazy:          h.Lazy,
 			Socket:        h.Socket,
 			NeedsCleanup:  h.NeedsCleanup,
 			HasValidation: h.HasValidation,
 			Cache:         h.Cache,
-			Prefetch:      h.Prefetch,
 		}
 
 		return RouteResult{
