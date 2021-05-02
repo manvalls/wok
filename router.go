@@ -605,7 +605,6 @@ func ControllerHandler(h RouteController) RouteHandlerFunc {
 			Method:     h.Method,
 			Params:     filteredParams,
 
-			DependsOn:     h.DependsOn,
 			Persistent:    h.Persistent,
 			Lazy:          h.Lazy,
 			Socket:        h.Socket,

@@ -4,5 +4,5 @@ go 1.14
 
 require (
 	github.com/manvalls/wit v0.0.0-20201230125249-1acad31de893
-	golang.org/x/net v0.0.0-20201224014010-6772e930b67b
+	github.com/manvalls/wq v0.0.0-20210410164417-00812ce45084
 )

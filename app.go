@@ -3,6 +3,9 @@ package wok
 import (
 	"net/http"
 	"strings"
+
+	"github.com/manvalls/wit"
+	"github.com/manvalls/wq"
 )
 
 type LocalApp struct {
@@ -10,7 +13,13 @@ type LocalApp struct {
 	controllers map[string]ControllerFunc
 }
 
-type ControllerFunc func(r *http.Request, cr ControllerRequest)
+type Request struct {
+	*http.Request
+	ControllerRequest
+	wq.Node
+}
+
+type ControllerFunc func(r Request)
 
 func NewLocalApp(router Router) *LocalApp {
 	return &LocalApp{
@@ -24,8 +33,18 @@ func (a *LocalApp) Controller(name string, fn ControllerFunc) {
 }
 
 func (a *LocalApp) Run(r *http.Request, controllerRequest ControllerRequest) {
+	req := Request{
+		r,
+		controllerRequest,
+		wq.Node{
+			Send: func(d wit.Delta) {
+				controllerRequest.SendDelta(d)
+			},
+		},
+	}
+
 	if fn, ok := a.controllers[controllerRequest.Controller()]; ok {
-		fn(r, controllerRequest)
+		fn(req)
 		return
 	}
 
@@ -36,7 +55,7 @@ func (a *LocalApp) Run(r *http.Request, controllerRequest ControllerRequest) {
 		prefix := strings.Join(parts, ".")
 
 		if fn, ok := a.controllers[prefix]; ok {
-			fn(r, controllerRequest)
+			fn(req)
 			return
 		}
 	}
