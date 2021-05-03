@@ -31,7 +31,6 @@ type ControllerPlan struct {
 	Persistent    bool // Things that stay in the page even after navigating away
 	Lazy          bool // When true, don't run on the initial page load, run them from the client instead
 	Socket        bool // If true, use a real-time websocket
-	NeedsCleanup  bool // If true, run the cleanup function when navigating away
 	HasValidation bool // If true, dry-run when filling out the form
 	Cache         bool // If true, cache the result for subsequent requests
 }
@@ -39,29 +38,43 @@ type ControllerPlan struct {
 // ControllerRequest represents a request to run a controller
 type ControllerRequest interface {
 	Controller() string
-	Cleanup() bool
 	DryRun() bool
 	Socket() bool
 	Params() Params
 
-	SendDelta(delta wit.Delta)
+	Redirect(url string, status int) ControllerRequest
+	ExternalRedirect(url string, status int) ControllerRequest
+	SetStatus(status int) ControllerRequest
 
-	Redirect(url string, status int)
-	ExternalRedirect(url string, status int)
-	SetStatus(status int)
+	AddHeader(key string, values ...string) ControllerRequest
+	SetHeader(key string, values ...string) ControllerRequest
 
-	AddHeader(key string, values ...string)
-	SetHeader(key string, values ...string)
+	ReloadOn(events ...string) ControllerRequest
+	AbortOn(events ...string) ControllerRequest
 
-	ReloadOn(events ...string)
-	AbortOn(events ...string)
-	Trigger(events ...string)
+	SendDelta(delta wit.Delta) ControllerRequest
 
-	WaitFor(flags ...string)
-	Set(flags ...string)
-	Unset(flags ...string)
+	WaitUntil(flags ...string) ControllerRequest
+	WaitUntilNot(flags ...string) ControllerRequest
+
+	Trigger(events ...string) ControllerRequest
+	Set(flags ...string) ControllerRequest
+	Unset(flags ...string) ControllerRequest
+
+	Cleanup() Cleanup
 
 	Close()
+}
+
+type Cleanup interface {
+	SendDelta(delta wit.Delta) Cleanup
+
+	WaitUntil(flags ...string) Cleanup
+	WaitUntilNot(flags ...string) Cleanup
+
+	Trigger(events ...string) Cleanup
+	Set(flags ...string) Cleanup
+	Unset(flags ...string) Cleanup
 }
 
 // App holds and runs the list of controllers that conform an application

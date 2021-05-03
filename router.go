@@ -44,7 +44,6 @@ type RouteController struct {
 	Persistent    bool
 	Lazy          bool
 	Socket        bool
-	NeedsCleanup  bool
 	HasValidation bool
 	Cache         bool
 }
@@ -605,7 +604,6 @@ func ControllerHandler(h RouteController) RouteHandlerFunc {
 			Persistent:    h.Persistent,
 			Lazy:          h.Lazy,
 			Socket:        h.Socket,
-			NeedsCleanup:  h.NeedsCleanup,
 			HasValidation: h.HasValidation,
 			Cache:         h.Cache,
 		}
