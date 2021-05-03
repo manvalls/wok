@@ -1,11 +1,14 @@
 package wok
 
-import "net/http"
+import (
+	"net/http"
+	"strings"
+)
 
 type Handler struct {
 	Router
 	App
-	BaseURL string
+	BasePath string
 }
 
 type LocalHandler struct {
@@ -14,9 +17,9 @@ type LocalHandler struct {
 	*LocalApp
 }
 
-func NewHandler() LocalHandler {
+func NewHandler(basePath string) LocalHandler {
 	router := NewLocalRouter()
-	app := NewLocalApp(router)
+	app := NewLocalApp(router, basePath)
 
 	return LocalHandler{
 		LocalRouter: router,
@@ -28,6 +31,14 @@ func NewHandler() LocalHandler {
 	}
 }
 
-func (h Handler) ServeHTTP(http.ResponseWriter, *http.Request) {
+func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !strings.HasPrefix(r.URL.Path, h.BasePath) {
+		return
+	}
+
+	url := r.URL
+	url.Path = url.Path[len(h.BasePath):]
+
+	result := h.ResolveURL(r, url)
 
 }
