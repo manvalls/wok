@@ -28,6 +28,23 @@ func (r Request) Route(route string, params Params) (resolvedURL string) {
 	return r.basePath + r.router.ResolveRoute(r.Request, route, params)
 }
 
+func (r Request) Cleanup() (cr CleanupRequest) {
+	c := r.ControllerRequest.Cleanup()
+	return CleanupRequest{
+		c,
+		wq.Node{
+			Send: func(d wit.Delta) {
+				c.SendDelta(d)
+			},
+		},
+	}
+}
+
+type CleanupRequest struct {
+	Cleanup
+	wq.Node
+}
+
 type ControllerFunc func(r Request)
 
 func NewLocalApp(router Router, basePath string) *LocalApp {
