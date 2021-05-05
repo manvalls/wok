@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	"github.com/manvalls/wit"
 )
 
 type Handler struct {
@@ -112,6 +114,8 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	url := r.URL
 	url.Path = url.Path[len(h.BasePath):]
 
+	parentContext, parentCancel := context.WithCancel(r.Context())
+
 	triggerEmitter := newEmitter()
 	flagsEmitter := newEmitter()
 	flags := map[string]bool{}
@@ -120,10 +124,48 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var resultListeners []*struct{}
 	var resultCancellers map[string]context.CancelFunc
 
+	doc := wit.NewDocument()
+	statusCode := 200
+	redirected := false
+	mutationMux := sync.Mutex{}
+
 	wg := sync.WaitGroup{}
+	cwg := sync.WaitGroup{}
 
 	runControllerPlan := func(ctx context.Context, cp ControllerPlan) {
 		defer wg.Done()
+
+		triggerSubscriptions := []*struct{}{}
+		flagsSubscriptions := []*struct{}{}
+
+		jointContext, cancel := context.WithCancel(ctx)
+		go func() {
+			<-parentContext.Done()
+			cancel()
+		}()
+
+		childRequest := r.WithContext(jointContext)
+
+		go func() {
+			select {
+			case <-parentContext.Done():
+				return
+			case <-ctx.Done():
+			}
+
+			defer cwg.Done()
+
+			for _, id := range triggerSubscriptions {
+				triggerEmitter.unsubscribe(id)
+			}
+
+			for _, id := range flagsSubscriptions {
+				flagsEmitter.unsubscribe(id)
+			}
+
+			// TODO: run cleanup
+		}()
+
 		// TODO: run the controller
 	}
 
@@ -146,6 +188,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		newResultCancellers := map[string]context.CancelFunc{}
+		controllersToRun := map[string]ControllerPlan{}
 
 		for _, cp := range newResult.Controllers {
 			key := getControllerPlanKey(cp)
@@ -153,16 +196,23 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				newResultCancellers[key] = cancel
 				delete(resultCancellers, key)
 			} else {
-				ctx, cancel := context.WithCancel(r.Context())
-				newResultCancellers[key] = cancel
-
-				wg.Add(1)
-				go runControllerPlan(ctx, cp)
+				controllersToRun[key] = cp
 			}
 		}
 
 		for _, cancel := range resultCancellers {
+			cwg.Add(1)
 			cancel()
+		}
+
+		cwg.Wait()
+
+		for key, cp := range controllersToRun {
+			ctx, cancel := context.WithCancel(context.Background())
+			newResultCancellers[key] = cancel
+
+			wg.Add(1)
+			go runControllerPlan(ctx, cp)
 		}
 
 		result = newResult
@@ -180,7 +230,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, cp := range result.Controllers {
-		ctx, cancel := context.WithCancel(r.Context())
+		ctx, cancel := context.WithCancel(context.Background())
 		resultCancellers[getControllerPlanKey(cp)] = cancel
 
 		wg.Add(1)
@@ -188,5 +238,8 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	wg.Wait()
-	// TODO: send the response
+
+	w.Header().Add("content-type", "text/html; charset=utf-8")
+	w.WriteHeader(statusCode)
+	doc.Render(w)
 }
