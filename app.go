@@ -72,12 +72,12 @@ func (a *LocalApp) Run(r *http.Request, controllerRequest ControllerRequest) {
 		a.Router,
 	}
 
-	if fn, ok := a.controllers[controllerRequest.Controller()]; ok {
+	if fn, ok := a.controllers[controllerRequest.Controller]; ok {
 		fn(req)
 		return
 	}
 
-	parts := strings.Split(controllerRequest.Controller(), ".")
+	parts := strings.Split(controllerRequest.Controller, ".")
 
 	for len(parts) > 0 {
 		parts = parts[0 : len(parts)-1]
