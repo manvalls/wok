@@ -3,6 +3,7 @@ package wok
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -113,14 +114,7 @@ func (h Handler) Attach(m *http.ServeMux) {
 	m.Handle(strings.TrimRight(h.BasePath, "/")+"/", h)
 }
 
-func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !strings.HasPrefix(r.URL.Path, h.BasePath) {
-		return
-	}
-
-	url := r.URL
-	url.Path = url.Path[len(h.BasePath):]
-
+func (h Handler) Compute(url *url.URL, r *http.Request) (wit.Delta, int, string, http.Header) {
 	parentContext, parentCancel := context.WithCancel(r.Context())
 
 	triggerEmitter := newEmitter()
@@ -129,9 +123,8 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var resultListeners []*struct{}
 	var resultCancellers map[string]context.CancelFunc
 
-	doc := wit.NewDocument()
 	statusCode := 200
-	redirected := false
+	location := ""
 	mutationMux := sync.Mutex{}
 
 	wg := sync.WaitGroup{}
@@ -239,6 +232,35 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	wg.Wait()
 
+	return nil, statusCode, location, nil
+}
+
+func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !strings.HasPrefix(r.URL.Path, h.BasePath) {
+		return
+	}
+
+	doc := wit.NewDocument()
+
+	url := *r.URL
+	url.Path = url.Path[len(h.BasePath):]
+
+	delta, statusCode, location, header := h.Compute(&url, r)
+
+	wh := w.Header()
+	for key, value := range header {
+		wh[key] = value
+	}
+
+	if delta == nil {
+		w.Header().Add("location", location)
+		w.WriteHeader(statusCode)
+		return
+	}
+
+	// TODO: send JSON if requested
+
+	delta.Apply(doc)
 	w.Header().Add("content-type", "text/html; charset=utf-8")
 	w.WriteHeader(statusCode)
 	doc.Render(w)
