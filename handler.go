@@ -117,8 +117,6 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	parentContext, parentCancel := context.WithCancel(r.Context())
 
 	triggerEmitter := newEmitter()
-	flagsEmitter := newEmitter()
-	flags := map[string]bool{}
 
 	var result RouteResult
 	var resultListeners []*struct{}
@@ -136,7 +134,6 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer wg.Done()
 
 		triggerSubscriptions := []*struct{}{}
-		flagsSubscriptions := []*struct{}{}
 
 		jointContext, cancel := context.WithCancel(ctx)
 		go func() {
@@ -157,10 +154,6 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			for _, id := range triggerSubscriptions {
 				triggerEmitter.unsubscribe(id)
-			}
-
-			for _, id := range flagsSubscriptions {
-				flagsEmitter.unsubscribe(id)
 			}
 
 			// TODO: run cleanup

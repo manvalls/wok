@@ -36,45 +36,31 @@ type ControllerPlan struct {
 }
 
 // ControllerRequest represents a request to run a controller
-type ControllerRequest struct {
-	Controller string
-	DryRun     bool
-	Socket     bool
-	Params     Params
+type ControllerRequest interface {
+	Controller() string
+	DryRun() bool
+	Socket() bool
+	Params() Params
 
-	Redirect         func(url string, status int) ControllerRequest
-	ExternalRedirect func(url string, status int) ControllerRequest
-	SetStatus        func(status int) ControllerRequest
+	Redirect(url string, status int) ControllerRequest
+	SetStatus(status int) ControllerRequest
 
-	AddHeader func(key string, values ...string) ControllerRequest
-	SetHeader func(key string, values ...string) ControllerRequest
+	AddHeader(key string, values ...string) ControllerRequest
+	SetHeader(key string, values ...string) ControllerRequest
 
-	ReloadOn func(events ...string) ControllerRequest
-	AbortOn  func(events ...string) ControllerRequest
+	SendDelta(delta wit.Delta) ControllerRequest
 
-	SendDelta func(delta wit.Delta) ControllerRequest
+	ReloadOn(events ...string) ControllerRequest
+	Trigger(events ...string) ControllerRequest
 
-	WaitUntil    func(flags ...string) ControllerRequest
-	WaitUntilNot func(flags ...string) ControllerRequest
+	Cleanup() Cleanup
 
-	Trigger func(events ...string) ControllerRequest
-	Set     func(flags ...string) ControllerRequest
-	Unset   func(flags ...string) ControllerRequest
-
-	Cleanup func() Cleanup
-
-	Close func()
+	Close()
 }
 
-type Cleanup struct {
-	SendDelta func(delta wit.Delta) Cleanup
-
-	WaitUntil    func(flags ...string) Cleanup
-	WaitUntilNot func(flags ...string) Cleanup
-
-	Trigger func(events ...string) Cleanup
-	Set     func(flags ...string) Cleanup
-	Unset   func(flags ...string) Cleanup
+type Cleanup interface {
+	SendDelta(delta wit.Delta) Cleanup
+	Trigger(events ...string) Cleanup
 }
 
 // App holds and runs the list of controllers that conform an application
