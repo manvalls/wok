@@ -12,7 +12,10 @@ import (
 type Handler struct {
 	Router
 	App
+
 	BasePath string
+	Host     string
+	FrameId  func(*http.Request) string
 }
 
 type LocalHandler struct {
@@ -104,6 +107,10 @@ func (e emitter) emit(event string, id *struct{}) {
 
 func getControllerPlanKey(cp ControllerPlan) string {
 	return cp.Method + "::" + cp.Controller + "?" + cp.Params.Encode()
+}
+
+func (h Handler) Attach(m *http.ServeMux) {
+	m.Handle(strings.TrimRight(h.BasePath, "/")+"/", h)
 }
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
