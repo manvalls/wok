@@ -40,69 +40,26 @@ func NewHandler(basePath string) LocalHandler {
 	}
 }
 
-type emitter struct {
-	listeners        map[string]map[*struct{}]func()
-	mux              *sync.Mutex
-	eventsByListener map[*struct{}]string
+type controllerProcess struct {
+	ctx            context.Context
+	cancel         context.CancelFunc
+	controllerPlan ControllerPlan
+
+	eventsSinceStart map[string]bool
+	eventsListenedTo map[string]bool
+	eventsMux        *sync.Mutex
 }
 
-func newEmitter() emitter {
-	return emitter{
-		listeners:        map[string]map[*struct{}]func(){},
-		eventsByListener: map[*struct{}]string{},
-		mux:              &sync.Mutex{},
-	}
-}
+func newControllerProcess(ctx context.Context, cp ControllerPlan) *controllerProcess {
+	childCtx, cancel := context.WithCancel(ctx)
+	return &controllerProcess{
+		ctx:            childCtx,
+		cancel:         cancel,
+		controllerPlan: cp,
 
-func (e emitter) subscribe(event string, fn func()) (id *struct{}) {
-	e.mux.Lock()
-	defer e.mux.Unlock()
-
-	m, ok := e.listeners[event]
-	if !ok {
-		m = map[*struct{}]func(){}
-		e.listeners[event] = m
-	}
-
-	id = &struct{}{}
-	m[id] = fn
-	e.eventsByListener[id] = event
-	return id
-}
-
-func (e emitter) unsubscribe(id *struct{}) {
-	e.mux.Lock()
-	defer e.mux.Unlock()
-
-	event, ok := e.eventsByListener[id]
-	if !ok {
-		return
-	}
-
-	delete(e.eventsByListener, id)
-
-	m, ok := e.listeners[event]
-	if !ok {
-		return
-	}
-
-	delete(m, id)
-	if len(m) == 0 {
-		delete(e.listeners, event)
-	}
-}
-
-func (e emitter) emit(event string, id *struct{}) {
-	e.mux.Lock()
-	defer e.mux.Unlock()
-
-	m, ok := e.listeners[event]
-	if !ok {
-		return
-	}
-
-	for _, fn := range m {
-		go fn()
+		eventsSinceStart: map[string]bool{},
+		eventsListenedTo: map[string]bool{},
+		eventsMux:        &sync.Mutex{},
 	}
 }
 
@@ -117,122 +74,102 @@ func (h Handler) Attach(m *http.ServeMux) {
 func (h Handler) Compute(url *url.URL, r *http.Request) (wit.Delta, int, string, http.Header) {
 	parentContext, parentCancel := context.WithCancel(r.Context())
 
-	triggerEmitter := newEmitter()
-
 	var result RouteResult
-	var resultListeners []*struct{}
-	var resultCancellers map[string]context.CancelFunc
+	var controllerProcesses map[string]*controllerProcess
 
 	statusCode := 200
 	location := ""
-	mutationMux := sync.Mutex{}
+	headers := http.Header{}
 
-	wg := sync.WaitGroup{}
-	cwg := sync.WaitGroup{}
+	wg := &sync.WaitGroup{}
 
-	runControllerPlan := func(ctx context.Context, cp ControllerPlan) {
-		defer wg.Done()
+	var runControllerPlan func(p *controllerProcess)
 
-		triggerSubscriptions := []*struct{}{}
-
-		jointContext, cancel := context.WithCancel(ctx)
-		go func() {
-			<-parentContext.Done()
-			cancel()
-		}()
-
-		childRequest := r.WithContext(jointContext)
-
-		go func() {
-			select {
-			case <-parentContext.Done():
-				return
-			case <-ctx.Done():
-			}
-
-			defer cwg.Done()
-
-			for _, id := range triggerSubscriptions {
-				triggerEmitter.unsubscribe(id)
-			}
-
-			// TODO: run cleanup
-		}()
-
-		// TODO: run the controller
-	}
-
-	resultMux := &sync.Mutex{}
-
-	var updateRouteResult func()
-	updateRouteResult = func() {
-		resultMux.Lock()
-		defer resultMux.Unlock()
-
-		for _, id := range resultListeners {
-			triggerEmitter.unsubscribe(id)
-		}
-
+	updateRouteResult := func() {
 		newResult := h.ResolveURL(r, url)
-		newResultListeners := []*struct{}{}
-		for _, trigger := range result.ReloadOn {
-			id := triggerEmitter.subscribe(trigger, updateRouteResult)
-			newResultListeners = append(newResultListeners, id)
-		}
-
-		newResultCancellers := map[string]context.CancelFunc{}
-		controllersToRun := map[string]ControllerPlan{}
+		newControllerProcesses := map[string]*controllerProcess{}
 
 		for _, cp := range newResult.Controllers {
 			key := getControllerPlanKey(cp)
-			if cancel, ok := resultCancellers[key]; ok {
-				newResultCancellers[key] = cancel
-				delete(resultCancellers, key)
+			if p, ok := controllerProcesses[key]; ok {
+				newControllerProcesses[key] = p
+				delete(controllerProcesses, key)
 			} else {
-				controllersToRun[key] = cp
+				p := newControllerProcess(parentContext, cp)
+				newControllerProcesses[key] = p
+
+				wg.Add(1)
+				go runControllerPlan(p)
 			}
 		}
 
-		for _, cancel := range resultCancellers {
-			cwg.Add(1)
-			cancel()
-		}
-
-		cwg.Wait()
-
-		for key, cp := range controllersToRun {
-			ctx, cancel := context.WithCancel(context.Background())
-			newResultCancellers[key] = cancel
-
-			wg.Add(1)
-			go runControllerPlan(ctx, cp)
+		for _, p := range controllerProcesses {
+			p.cancel()
 		}
 
 		result = newResult
-		resultListeners = newResultListeners
-		resultCancellers = newResultCancellers
+		controllerProcesses = newControllerProcesses
+	}
+
+	mux := sync.Mutex{}
+
+	trigger := func(event string) {
+		mux.Lock()
+		defer mux.Unlock()
+
+		needsResultUpdate := false
+		for _, ro := range result.ReloadOn {
+			if ro == event {
+				needsResultUpdate = true
+				break
+			}
+		}
+
+		if needsResultUpdate {
+			updateRouteResult()
+		}
+
+		for key, p := range controllerProcesses {
+			p.eventsMux.Lock()
+
+			if p.eventsListenedTo[event] {
+				p.cancel()
+				np := newControllerProcess(parentContext, p.controllerPlan)
+				controllerProcesses[key] = np
+
+				wg.Add(1)
+				go runControllerPlan(np)
+			} else {
+				p.eventsSinceStart[event] = true
+			}
+
+			p.eventsMux.Unlock()
+		}
+
+	}
+
+	runControllerPlan = func(p *controllerProcess) {
+		defer wg.Done()
+		// TODO: run the controller
 	}
 
 	result = h.ResolveURL(r, url)
-	resultCancellers = map[string]context.CancelFunc{}
+	controllerProcesses = map[string]*controllerProcess{}
 
-	resultListeners = []*struct{}{}
-	for _, trigger := range result.ReloadOn {
-		id := triggerEmitter.subscribe(trigger, updateRouteResult)
-		resultListeners = append(resultListeners, id)
-	}
+	mux.Lock()
 
 	for _, cp := range result.Controllers {
-		ctx, cancel := context.WithCancel(context.Background())
-		resultCancellers[getControllerPlanKey(cp)] = cancel
+		p := newControllerProcess(parentContext, cp)
+		controllerProcesses[getControllerPlanKey(cp)] = p
 
 		wg.Add(1)
-		go runControllerPlan(ctx, cp)
+		go runControllerPlan(p)
 	}
 
-	wg.Wait()
+	mux.Unlock()
 
-	return nil, statusCode, location, nil
+	wg.Wait()
+	return nil, statusCode, location, headers
 }
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
