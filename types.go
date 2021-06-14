@@ -54,8 +54,6 @@ type ControllerRequest interface {
 	Trigger(events ...string) ControllerRequest
 
 	Cleanup() Cleanup
-
-	Close()
 }
 
 type Cleanup interface {
