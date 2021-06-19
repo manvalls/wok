@@ -38,7 +38,6 @@ type ControllerPlan struct {
 // ControllerRequest represents a request to run a controller
 type ControllerRequest interface {
 	Controller() string
-	DryRun() bool
 	Socket() bool
 	Params() Params
 

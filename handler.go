@@ -72,7 +72,7 @@ func (h Handler) Attach(m *http.ServeMux) {
 }
 
 func (h Handler) Compute(url *url.URL, r *http.Request) (wit.Delta, int, string, http.Header) {
-	parentContext, parentCancel := context.WithCancel(r.Context())
+	parentContext := r.Context()
 
 	var result RouteResult
 	var controllerProcesses map[string]*controllerProcess
