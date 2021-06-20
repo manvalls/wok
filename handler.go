@@ -44,10 +44,12 @@ type controllerProcess struct {
 	ctx            context.Context
 	cancel         context.CancelFunc
 	controllerPlan ControllerPlan
+	key            string
 
 	eventsSinceStart map[string]bool
 	eventsListenedTo map[string]bool
-	eventsMux        *sync.Mutex
+	cr               *baseCR
+	mux              *sync.Mutex
 }
 
 func newControllerProcess(ctx context.Context, cp ControllerPlan) *controllerProcess {
@@ -56,10 +58,11 @@ func newControllerProcess(ctx context.Context, cp ControllerPlan) *controllerPro
 		ctx:            childCtx,
 		cancel:         cancel,
 		controllerPlan: cp,
+		key:            getControllerPlanKey(cp),
 
 		eventsSinceStart: map[string]bool{},
 		eventsListenedTo: map[string]bool{},
-		eventsMux:        &sync.Mutex{},
+		mux:              &sync.Mutex{},
 	}
 }
 
@@ -71,14 +74,13 @@ func (h Handler) Attach(m *http.ServeMux) {
 	m.Handle(strings.TrimRight(h.BasePath, "/")+"/", h)
 }
 
-func (h Handler) Compute(url *url.URL, r *http.Request) (wit.Delta, int, string, http.Header) {
+func (h Handler) compute(url *url.URL, r *http.Request) (wit.Delta, int, http.Header) {
 	parentContext := r.Context()
 
 	var result RouteResult
 	var controllerProcesses map[string]*controllerProcess
 
 	statusCode := 200
-	location := ""
 	headers := http.Header{}
 
 	wg := &sync.WaitGroup{}
@@ -130,7 +132,7 @@ func (h Handler) Compute(url *url.URL, r *http.Request) (wit.Delta, int, string,
 		}
 
 		for key, p := range controllerProcesses {
-			p.eventsMux.Lock()
+			p.mux.Lock()
 
 			if p.eventsListenedTo[event] {
 				p.cancel()
@@ -143,14 +145,54 @@ func (h Handler) Compute(url *url.URL, r *http.Request) (wit.Delta, int, string,
 				p.eventsSinceStart[event] = true
 			}
 
-			p.eventsMux.Unlock()
+			p.mux.Unlock()
 		}
 
 	}
 
 	runControllerPlan = func(p *controllerProcess) {
 		defer wg.Done()
-		// TODO: run the controller
+
+		cr := newBaseCR()
+
+		cr.controller = p.controllerPlan.Controller
+		cr.socket = false
+		cr.params = p.controllerPlan.Params
+
+		cr.triggerCb = trigger
+		cr.reloadOnCb = func(event string) {
+			p.mux.Lock()
+			defer p.mux.Unlock()
+
+			if p.eventsSinceStart[event] {
+				mux.Lock()
+				defer mux.Unlock()
+
+				p.cancel()
+
+				oldP := controllerProcesses[p.key]
+				if oldP == p {
+					np := newControllerProcess(parentContext, p.controllerPlan)
+					controllerProcesses[p.key] = np
+
+					wg.Add(1)
+					go runControllerPlan(np)
+				}
+			} else {
+				p.eventsListenedTo[event] = true
+			}
+		}
+
+		h.App.Run(r.WithContext(p.ctx), cr)
+
+		cr.mux.Lock()
+		defer cr.mux.Unlock()
+		cr.triggerCb = nil
+		cr.reloadOnCb = nil
+
+		p.mux.Lock()
+		defer p.mux.Unlock()
+		p.cr = cr
 	}
 
 	result = h.ResolveURL(r, url)
@@ -160,16 +202,18 @@ func (h Handler) Compute(url *url.URL, r *http.Request) (wit.Delta, int, string,
 
 	for _, cp := range result.Controllers {
 		p := newControllerProcess(parentContext, cp)
-		controllerProcesses[getControllerPlanKey(cp)] = p
+		controllerProcesses[p.key] = p
 
 		wg.Add(1)
 		go runControllerPlan(p)
 	}
 
 	mux.Unlock()
-
 	wg.Wait()
-	return nil, statusCode, location, headers
+
+	// TODO compute delta, headers and status code
+
+	return nil, statusCode, headers
 }
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +226,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	url := *r.URL
 	url.Path = url.Path[len(h.BasePath):]
 
-	delta, statusCode, location, header := h.Compute(&url, r)
+	delta, statusCode, header := h.compute(&url, r)
 
 	wh := w.Header()
 	for key, value := range header {
@@ -190,7 +234,6 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if delta == nil {
-		w.Header().Add("location", location)
 		w.WriteHeader(statusCode)
 		return
 	}
